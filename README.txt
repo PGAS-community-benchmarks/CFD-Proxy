@@ -74,12 +74,14 @@ in ./src directory.
    (USE_MPI_MULTI_THREADED, USE_GASPI, USE_NTHREADS)). The MPI lib will 
    require support for either MPI_THREAD_MULTIPLE or MPI_THREAD_SERIALIZED.
  
-3) Unpack the dualgrid meshes in f6.
+3) Unpack the dualgrid meshes in f6. Github restrictions currently only allow 
+   for rather moderate mesh size, so we are currently looking for a better
+   solution.
 
 3) GASPI can make use of the startup mechanisms of MPI. Start the
    hybrid.f6.exe hybrid MPI/GASPI executable as a regular hybrid OpenMP/MPI 
    application, e.g  mpirun -np 12 -machinefile machines -perhost 2 
-   ../src/hybrid.f6.exe -lvl 1 dualgrid
+   ../src/hybrid.f6.exe -lvl 2 dualgrid
 
 
 ==============================================================================
