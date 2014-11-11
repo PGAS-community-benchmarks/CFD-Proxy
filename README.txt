@@ -131,12 +131,6 @@ OpenMP critical section.
 
 Community involvement
 ---------------------
-It is quite possible that MPI or other Communication API’s/Programming 
-languages potentially can yield higher scalability than the
-implementations in this package, e.g. with other/better communication 
-patterns. (MPI-3 passive target communication for example)
-We are happy to include all those patterns in this CFD Proxy.
-
 We encourage the HPC community to provide new patterns or improve existing
 ones. No restrictions apply. Instead we encourage you to improve
 this kernel via better threadings models, and/or better communication and/or
