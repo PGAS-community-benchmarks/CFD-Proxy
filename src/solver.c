@@ -99,6 +99,7 @@ void test_solver(comm_data *cd, solver_data *sd)
 	    compute_gradients_gg_mpi_async(cd, sd, final);
 	  }  
       }
+      MPI_Barrier(MPI_COMM_WORLD);
       time += now();
       median[3][k] = time;
 
