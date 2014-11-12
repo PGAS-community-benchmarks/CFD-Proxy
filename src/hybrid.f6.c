@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
 
   /* open the file */
   char fname[80] = "";
-  sprintf(fname, "%s_domain_%d_grid_%d"
+  sprintf(fname, "%s_domain_%d_lvl_%d"
 	  ,argv[3]
 	  ,cd.iProc
 	  ,atoi(argv[2])
