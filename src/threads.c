@@ -37,7 +37,9 @@
 /* comm var for threadprivate comm */
 static volatile counter_t *inc_send = NULL; 
 static __thread int *inc_send_local = NULL;
+#pragma omp threadprivate(inc_send_local)
 static __thread int *sendcount_local = NULL;
+#pragma omp threadprivate(sendcount_local)
 
 /* getter/setter functions for global increments */
 int get_inc_send(int i)

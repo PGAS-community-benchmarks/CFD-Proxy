@@ -26,10 +26,13 @@
 
 // threadprivate rangelist data
 static __thread RangeList *color_local = NULL;
+#pragma omp threadprivate(color_local)
 static __thread int ncolors_local = 0;
+#pragma omp threadprivate(ncolors_local)
 
 // threadprivate solver data
 static __thread solver_data_local solver_local;
+#pragma omp threadprivate(solver_local)
 
 void init_rangelist(RangeList *fcolor)
 {  
