@@ -110,20 +110,15 @@ void exchange_dbl_mpidma_write(comm_data *cd
 
       int size = count * dim2 * szd;
 
-#ifndef USE_MPI_MULTI_THREADED
-#pragma omp critical
-#endif
-      {
-	MPI_Put(sbuf
-		, size // num items to copy
-		, MPI_CHAR // type pf items to copy
-		, k // target rank to copy to
-		, remote_recv_offset[k] // target_disp
-		, size  // target_count
-		, MPI_CHAR // type at target
-		, rcvwin // MPI DMA win to use
-		);
-      }
+      MPI_Put(sbuf
+	      , size // num items to copy
+	      , MPI_CHAR // type pf items to copy
+	      , k // target rank to copy to
+	      , remote_recv_offset[k] // target_disp
+	      , size  // target_count
+	      , MPI_CHAR // type at target
+	      , rcvwin // MPI DMA win to use
+	      );
     }
 }
 

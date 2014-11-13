@@ -115,19 +115,15 @@ void exchange_dbl_mpi_send(comm_data *cd
 
       count *= dim2;
       size = count * szd;
-#ifndef USE_MPI_MULTI_THREADED
-#pragma omp critical
-#endif
-      { 
-	MPI_Isend(sbuf
-		   , size
-		   , MPI_BYTE
-		   , k
-		   , DATAKEY
-		   , MPI_COMM_WORLD
-		   , &(cd->req[ncommdomains + i])
-		   );
-      }
+
+      MPI_Isend(sbuf
+		, size
+		, MPI_BYTE
+		, k
+		, DATAKEY
+		, MPI_COMM_WORLD
+		, &(cd->req[ncommdomains + i])
+		);
 
       sbuf += count;
     }

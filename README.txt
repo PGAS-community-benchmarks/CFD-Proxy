@@ -126,8 +126,8 @@ partner) on these halo points then triggers the communication – either via
 MPI_Isend, MPI_Put or gaspi_write_notify. We note that while this method 
 allows for a maximal overlap of communication and computation, it either 
 requires a full MPI_THREAD_MULTIPLE or a MPI_THREAD_SERIALIZED MPI version. 
-For the latter version we have encapsulated the actual MPI_Isend in an 
-OpenMP critical section.
+For the latter version we have encapsulated the actual MPI_Isend, MPI_Put
+in an OpenMP critical section.
 
 Community involvement
 ---------------------

@@ -158,11 +158,16 @@ void initiate_thread_comm_mpi(RangeList *color
 	      int k = cd->commpartner[i1];
 	      if (inc_global % cd->sendcount[k] == 0)
 		{
-		  exchange_dbl_mpi_send(cd
-					, data
-					, dim2
-					, i1
-					);
+#ifndef USE_MPI_MULTI_THREADED
+#pragma omp critical
+#endif
+		  {
+		    exchange_dbl_mpi_send(cd
+					  , data
+					  , dim2
+					  , i1
+					  );
+		  }
 		}
 	    }
 	}
@@ -190,7 +195,12 @@ void initiate_thread_comm_mpifence(RangeList *color
 	      int k = cd->commpartner[i1];
 	      if (inc_global % cd->sendcount[k] == 0)
 		{
-		  exchange_dbl_mpidma_write(cd, data, dim2, i1);
+#ifndef USE_MPI_MULTI_THREADED
+#pragma omp critical
+#endif
+		  {
+		    exchange_dbl_mpidma_write(cd, data, dim2, i1);
+		  }
 		}
 	    }
 	}
@@ -219,11 +229,16 @@ void initiate_thread_comm_mpipscw(RangeList *color
 	      int k = cd->commpartner[i1];
 	      if (inc_global % cd->sendcount[k] == 0)
 		{
-		  exchange_dbl_mpidma_write(cd, data, dim2, i1);
-		  if (my_add_and_fetch(&shared_nput, 1) % cd->ncommdomains == 0)
-		    {
-		      mpidma_async_complete();
-		    }
+#ifndef USE_MPI_MULTI_THREADED
+#pragma omp critical
+#endif
+		  {
+		    exchange_dbl_mpidma_write(cd, data, dim2, i1);
+		    if (my_add_and_fetch(&shared_nput, 1) % cd->ncommdomains == 0)
+		      {
+			mpidma_async_complete();
+		      }
+		  }
 		}
 	    }
 	}
