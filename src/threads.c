@@ -36,9 +36,9 @@
 
 /* comm var for threadprivate comm */
 static volatile counter_t *inc_send = NULL; 
-static __thread int *inc_send_local = NULL;
+static int *inc_send_local = NULL;
 #pragma omp threadprivate(inc_send_local)
-static __thread int *sendcount_local = NULL;
+static int *sendcount_local = NULL;
 #pragma omp threadprivate(sendcount_local)
 
 /* getter/setter functions for global increments */
@@ -105,7 +105,8 @@ int my_fetch_and_add(volatile int *ptr, int val)
 int this_is_the_first_thread(void)
 {
   static volatile int shared_counter = 0;
-  static __thread int local_next     = 0;
+  static int local_next     = 0;
+#pragma omp threadprivate(local_next)
 
   const int nthreads = omp_get_num_threads(),
             first    = local_next;
@@ -124,7 +125,8 @@ int this_is_the_first_thread(void)
 int this_is_the_last_thread(void)
 {
   static volatile int shared_counter = 0;
-  static __thread int local_next     = 0;
+  static int local_next     = 0;
+#pragma omp threadprivate(local_next)
 
   int const nthreads = omp_get_num_threads();
 
