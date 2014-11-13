@@ -74,9 +74,9 @@ in ./src directory.
    (USE_MPI_MULTI_THREADED, USE_GASPI, USE_NTHREADS)). The MPI lib will 
    require support for either MPI_THREAD_MULTIPLE or MPI_THREAD_SERIALIZED.
  
-3) Unpack the dualgrid meshes in f6. Github restrictions currently only allow 
-   for rather moderate mesh size, so we are currently looking for a better
-   solution.
+3) Unpack the dualgrid meshes in f6. Github restrictions currently only allows 
+   for rather moderate mesh size, so we are in the process of looking for a 
+   better solution.
 
 3) GASPI can make use of the startup mechanisms of MPI. Start the
    hybrid.f6.exe hybrid MPI/GASPI executable as a regular hybrid OpenMP/MPI 
@@ -126,8 +126,16 @@ partner) on these halo points then triggers the communication – either via
 MPI_Isend, MPI_Put or gaspi_write_notify. We note that while this method 
 allows for a maximal overlap of communication and computation, it either 
 requires a full MPI_THREAD_MULTIPLE or a MPI_THREAD_SERIALIZED MPI version. 
-For the latter version we have encapsulated the actual MPI_Isend, MPI_Put
+For the latter version we have encapsulated the actual MPI_Isend and MPI_Put
 in an OpenMP critical section.
+
+
+Results
+-------
+For current results on a Fat Tree FDR/Ivy Bridge please have a look at the 
+documentation. New, shiny and hopefully much better results will be 
+included upon request.
+
 
 Community involvement
 ---------------------
