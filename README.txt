@@ -37,8 +37,8 @@ kernel is representative for a much broader class of applications which
 make use of unstructured meshes.
 
 This benchmark aims at strong scaling scenarios with ~ 100 mesh points per 
-core. For more details please see the documentation. For even more details 
-please have a look at the code.
+(x86 Ivy Bridge) core. For more details please see the documentation. 
+For even more details please have a look at the code.
 
 ==============================================================================
 2.  Contents of this Distribution
