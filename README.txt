@@ -85,7 +85,6 @@ in ./src directory.
    application, e.g  mpirun -np 12 -machinefile machines -perhost 2 
    ../src/hybrid.f6.exe -lvl 2 dualgrid
 
-
 ==============================================================================
 5. MPI
 ==============================================================================
@@ -104,15 +103,14 @@ in ./src directory.
 7. Implementation details
 ==============================================================================
 
-
 Threading model
 ---------------
 We have adopted a threading strategy which allows read access only to points
 belonging to other thread domains and read/write access to the points the
-thread actually owns.  The CFD proxy hence implements 3 different edge types:
-edges which reside entirely within the thread domain (and which are allowed 
-to update both attached data points, ftype 1), edges which only write to the
-left data point (ftype 2) and edges which only write to the right data point 
+thread actually owns.  The CFD proxy hence implements 3 different face types:
+faces which reside entirely within the thread domain (and which are allowed 
+to update both attached data points, ftype 1), faces which only write to the
+left data point (ftype 2) and faces which only write to the right data point 
 (ftype 3). In order to maximize scalar efficiency we have split the thread 
 domains  into sub domains (colors) which fit in the L2 cache.  
 We perform strip mining both with respect to initialized and finalized 
@@ -123,13 +121,14 @@ Overlapping communication and computation
 For an efficient overlap of computation with communication we need to trigger
 the communication as early as possible. When preprocessing the mesh we hence 
 mark up all finalized points per color which belong to the mesh halo. 
-The thread which completes the final update (for a specific communication 
-partner) on these halo points then triggers the communication – either via 
-MPI_Isend, MPI_Put or gaspi_write_notify. We note that while this method 
-allows for a maximal overlap of communication and computation, it either 
-requires a full MPI_THREAD_MULTIPLE or a MPI_THREAD_SERIALIZED MPI version. 
-For the latter version we have encapsulated the actual MPI_Isend and MPI_Put
-in an OpenMP critical section.
+The mesh faces are reordered such that halo points are updated first during
+the gradient reconstruction. The thread which completes the final update 
+(for a specific communication  partner) on these halo points then triggers 
+the communication – either via  MPI_Isend, MPI_Put or gaspi_write_notify. 
+We note that while this method  allows for a maximal overlap of communication 
+and computation, it either  requires a full MPI_THREAD_MULTIPLE or a 
+MPI_THREAD_SERIALIZED MPI version.  For the latter version we have 
+encapsulated the actual MPI_Isend and MPI_Put in an OpenMP critical section.
 
 ==============================================================================
 8. Results
