@@ -16,6 +16,8 @@ Table of contents
  5.  Related Documentation - MPI (Message Passing Interface)
  6.  Documentation - GASPI (Global Address Space Programming Interface)
  7.  Implementation details
+ 8.  Results
+ 9.  Community involvement
 
 ==============================================================================
 1. Overview
@@ -129,19 +131,23 @@ requires a full MPI_THREAD_MULTIPLE or a MPI_THREAD_SERIALIZED MPI version.
 For the latter version we have encapsulated the actual MPI_Isend and MPI_Put
 in an OpenMP critical section.
 
+==============================================================================
+8. Results
+==============================================================================
 
-Results
--------
 For current results on a Fat Tree FDR/Ivy Bridge please have a look at the 
 documentation. New, shiny and hopefully much better results will be 
 included upon request.
 
+==============================================================================
+9. Community involvement
+==============================================================================
 
-Community involvement
----------------------
 We encourage the HPC community to provide new patterns or improve existing
 ones. No restrictions apply. Instead we encourage you to improve
 this kernel via better threadings models, and/or better communication and/or
 more scalable communication API’s and/or better programming languages. Bonus
 points are granted for highly scalable implementations which also feature
 better programmability.
+
+
