@@ -434,9 +434,6 @@ static void set_first_points_of_color(solver_data *sd
 
 }
 
-#define MAX_FACES_IN_COLOR 96
-
-
 void init_thread_rangelist(comm_data *cd
 			   , solver_data *sd
 			   , int tid
@@ -464,140 +461,120 @@ void init_thread_rangelist(comm_data *cd
       return;
     }
 
-  int    (*fpoint)[2] = (int (*)[2]) check_malloc(nfaces * 2 * sizeof(int));
-  double (*fnormal)[3] = (double (*)[3]) check_malloc(nfaces * 3 * sizeof(double));
+  /* init thread private face data */
+  int     *ttype       = check_malloc(nfaces * sizeof(int));
+  int    (*fpoint)[2]  = check_malloc(2 * nfaces * sizeof(int));
+  double (*fnormal)[3] = check_malloc(3 * nfaces * sizeof(double));
 
-  int last_face[5];
-  int i0 = 0;  
-
-  /* all halo faces with p1 == tid */
+  int nf = 0;
   for (face = 0; face < sd->nfaces; face++)
     {
       int p0 = sd->fpoint[face][0];
       int p1 = sd->fpoint[face][1];
+      if (pid[p0] == tid || pid[p1] == tid)
+	{
+	  memcpy(&(fpoint[nf][0])
+		 , &(sd->fpoint[face][0])
+		 , 2 * sizeof(int)
+		 );
+	  memcpy(&(fnormal[nf][0])
+		 , &(sd->fnormal[face][0])
+		 , 3 * sizeof(double)
+		 );
+	  nf++;
+	}
+    }
+  ASSERT(nf == nfaces);
+
+  /* set ttype */
+  for (face = 0; face < nfaces; face++)
+    {
+      int p0 = fpoint[face][0];
+      int p1 = fpoint[face][1];
+      /* all halo faces with p1 == tid */
       if ((pid[p0] != tid && pid[p1] == tid) && htype[p1] == 1)
 	{
-	  memcpy(&(fpoint[i0][0])
-		 , &(sd->fpoint[face][0])
-		 , 2 * sizeof(int)
-		 );
-	  memcpy(&(fnormal[i0][0])
-		 , &(sd->fnormal[face][0])
-		 , 3 * sizeof(double)
-		 );
-	  i0++;
+	  ttype[face] = 0;
 	}
-    }
-  last_face[0] = i0;
-
-  /* all halo faces with p0 == tid */
-  for (face = 0; face < sd->nfaces; face++)
-    {
-      int p0 = sd->fpoint[face][0];
-      int p1 = sd->fpoint[face][1];
-      if ((pid[p0] == tid && pid[p1] != tid) && htype[p0] == 1)
+      /* all halo faces with p0 == tid */
+      else if ((pid[p0] == tid && pid[p1] != tid) && htype[p0] == 1)
 	{
-	  memcpy(&(fpoint[i0][0])
-		 , &(sd->fpoint[face][0])
-		 , 2 * sizeof(int)
-		 );
-	  memcpy(&(fnormal[i0][0])
-		 , &(sd->fnormal[face][0])
-		 , 3 * sizeof(double)
-		 );
-	    i0++;
+	  ttype[face] = 1;
 	}
-    }
-  last_face[1] = i0;
-
-  /* all halo faces with p0 == tid && p1 == tid */
-  for (face = 0; face < sd->nfaces; face++)
-    {
-      int p0 = sd->fpoint[face][0];
-      int p1 = sd->fpoint[face][1];
-      if ((pid[p0] == tid && pid[p1] == tid) && (htype[p0] == 1 || htype[p1] == 1))
+      /* all halo faces with p0 == tid && p1 == tid */
+      else if ((pid[p0] == tid && pid[p1] == tid) && (htype[p0] == 1 || htype[p1] == 1))
 	{
-	  memcpy(&(fpoint[i0][0])
-		 , &(sd->fpoint[face][0])
-		 , 2 * sizeof(int)
-		 );
-	  memcpy(&(fnormal[i0][0])
-		 , &(sd->fnormal[face][0])
-		 , 3 * sizeof(double)
-		 );
-	  i0++;
+	  ttype[face] = 2;
 	}
-    }
-  last_face[2] = i0;
-
-  /* all inner faces with p1 == tid */
-  for (face = 0; face < sd->nfaces; face++)
-    {
-      int p0 = sd->fpoint[face][0];
-      int p1 = sd->fpoint[face][1];
-      if ((pid[p0] != tid && pid[p1] == tid) && htype[p1] == 2)
+      /* all inner faces with p1 == tid */
+      else if ((pid[p0] != tid && pid[p1] == tid) && htype[p1] == 2)
 	{
-	  memcpy(&(fpoint[i0][0])
-		 , &(sd->fpoint[face][0])
-		 , 2 * sizeof(int)
-		 );
-	  memcpy(&(fnormal[i0][0])
-		 , &(sd->fnormal[face][0])
-		 , 3 * sizeof(double)
-		 );
-	  i0++;
+	  ttype[face] = 3;
 	}
-    }
-  last_face[3] = i0;
-
-  /* all inner faces with p0 == tid */
-  for (face = 0; face < sd->nfaces; face++)
-    {
-      int p0 = sd->fpoint[face][0];
-      int p1 = sd->fpoint[face][1];
-      if ((pid[p0] == tid && pid[p1] != tid) && htype[p0] == 2)
+      /* all inner faces with p0 == tid */
+      else if ((pid[p0] == tid && pid[p1] != tid) && htype[p0] == 2)
 	{
-	  memcpy(&(fpoint[i0][0])
-		 , &(sd->fpoint[face][0])
-		 , 2 * sizeof(int)
-		 );
-	  memcpy(&(fnormal[i0][0])
-		 , &(sd->fnormal[face][0])
-		 , 3 * sizeof(double)
-		 );
-	    i0++;
+	  ttype[face] = 4;
 	}
-    }
-  last_face[4] = i0;
-
-  /* all inner faces with p0 == tid && p1 == tid */
-  for (face = 0; face < sd->nfaces; face++)
-    {
-      int p0 = sd->fpoint[face][0];
-      int p1 = sd->fpoint[face][1];
-      if ((pid[p0] == tid && pid[p1] == tid) && (htype[p0] == 2 && htype[p1] == 2))
+      /* all inner faces with p0 == tid && p1 == tid */
+      else if ((pid[p0] == tid && pid[p1] == tid) && (htype[p0] == 2 && htype[p1] == 2))
 	{
-	  memcpy(&(fpoint[i0][0])
-		 , &(sd->fpoint[face][0])
-		 , 2 * sizeof(int)
-		 );
-	  memcpy(&(fnormal[i0][0])
-		 , &(sd->fnormal[face][0])
-		 , 3 * sizeof(double)
-		 );
-	  i0++;
+	  ttype[face] = 5;
+	}
+      /* sanity check */
+      else 
+	{
+	  ASSERT(0);
 	}
     }
 
-  ASSERT(i0 == nfaces);
+  /* init permutation vector for sorting */
+  int *pm = check_malloc(nfaces * sizeof(int));
+  for (face = 0; face < nfaces; face++)
+    {
+      pm[face] = face;
+    }
+
+  /* sort faces for type and p1/p0 */
+  sort_faces(pm, fpoint, ttype, sd, nfaces);
+
+  int     *tt     = check_malloc(nfaces * sizeof(int));
+  int    (*fp)[2] = check_malloc(2 * nfaces * sizeof(int));
+  double (*fn)[3] = check_malloc(3 * nfaces * sizeof(double));
+  /* fix face permutation */
+  for (face = 0; face < nfaces; face++)
+    {
+      int tf = pm[face];
+      memcpy(&(tt[face])
+             , &(ttype[tf])
+             , sizeof(int)
+             );
+      memcpy(&(fp[face][0])
+             , &(fpoint[tf][0])
+             , 2 * sizeof(int)
+             );
+      memcpy(&(fn[face][0])
+             , &(fnormal[tf][0])
+             , 3 * sizeof(double)
+             );
+    }
+  check_free(pm);
+  check_free(ttype);
+  check_free(fpoint);
+  check_free(fnormal);
+
+  // thread local solver (face) data
+  solver_local.fpoint = fp;
+  solver_local.fnormal = fn;
+  ttype = tt;
+
+#define MAX_FACES_IN_COLOR 96
 
   int count = 0;
   int ncolors = 0;
   for(face = 1 ; face < nfaces; face++)
     {
-      if((++count) == MAX_FACES_IN_COLOR || 
-	 face == last_face[0] || face == last_face[1] || face == last_face[2] ||
-	 face == last_face[3] || face == last_face[4])
+      if((++count) == MAX_FACES_IN_COLOR || ttype[face] != ttype[face-1])	
 	{
 	  count = 0;
 	  ncolors++;
@@ -606,18 +583,17 @@ void init_thread_rangelist(comm_data *cd
   /* last color */
   ncolors++;
         
-
   /* alloc threadprivate rangelist */
   ncolors_local = ncolors;
   color_local = check_malloc(ncolors * sizeof(RangeList));  
 
   RangeList *tl;  
+  int i0;
   for (i0 = 0; i0 < ncolors; i0++)
     {
       tl = &(color_local[i0]); 
       init_rangelist(tl);
     }
-
 
   /* set color range */
   count = 0;
@@ -625,9 +601,7 @@ void init_thread_rangelist(comm_data *cd
   int start = 0;  
   for(face = 1 ; face < nfaces; face++)
     {
-      if((++count) == MAX_FACES_IN_COLOR || 
-	 face == last_face[0] || face == last_face[1] || face == last_face[2] ||
-	 face == last_face[3] || face == last_face[4])
+      if((++count) == MAX_FACES_IN_COLOR || ttype[face] != ttype[face-1])	
 	{
 	  tl = &(color_local[i0]); 
 	  tl->start  = start;
@@ -638,7 +612,6 @@ void init_thread_rangelist(comm_data *cd
 	  i0++;
 	} 
     }
-
   /* last color */
   tl = &(color_local[i0]); 
   tl->start  = start;
@@ -647,32 +620,7 @@ void init_thread_rangelist(comm_data *cd
 
   ASSERT(i0 == ncolors);
 
-#ifdef DEBUG
-  if (cd->iProc == 0)
-    {
-      printf("tid: %d ncolors: %d\n",tid,ncolors);
-      fflush(stdout);
-      int i1;
-      for(i1 = 0; i1 < ncolors; i1++)
-	{
-	  tl = &(color_local[i1]);       
-	  int fstart = tl->start;
-	  int fstop  = tl->stop;
-	  printf("tid: %d start: %d stop: %d\n",tid,fstart,fstop);
-	  fflush(stdout);
-
-	  for (face = fstart; face < fstop; face++)
-	    {
-	      int p0 = fpoint[face][0];
-	      int p1 = fpoint[face][1];
-	      printf("tid: %d p0: %d p1: %d pid0: %d pid1: %d htype0: %d htype1: %d\n"
-		     ,tid, p0, p1, pid[p0], pid[p1], htype[p0], htype[p1]);
-	      fflush(stdout);
-	    }
-	}
-    }
-#endif
-
+  /* set ftype, succ */
   int i;
   for(i = 0; i < ncolors; i++)
     {
@@ -682,32 +630,25 @@ void init_thread_rangelist(comm_data *cd
       tl->tid = tid;
 
       int fstart = tl->start;
-      int fstop  = tl->stop;
 
+      /* ftype, writing only p1 */
+      if(ttype[fstart] == 0 || ttype[fstart] == 3)
+	{
+	  tl->ftype  = 3;
+	}
+      /* ftype, writing only p0 */
+      else if (ttype[fstart] == 1 || ttype[fstart] == 4)
+	{
+	  tl->ftype  = 2;
+	}
       /* ftype, writing p0/p1 */
-      if ((fstart >= last_face[1] && fstop <= last_face[2]) ||
-	  fstart >= last_face[4])
+      else if (ttype[fstart] == 2 || ttype[fstart] == 5)
 	{
 	  tl->ftype  = 1;
 	}
       else
 	{
-	  /* ftype, writing only p0 */
-	  if((fstart >= last_face[0] && fstop <= last_face[1]) ||
-	     (fstart >= last_face[3] && fstop <= last_face[4])) 
-	    {
-	      tl->ftype  = 2;
-	    }
-	  /* ftype, writing only p1 */
-	  else if((fstop <= last_face[0]) ||
-		  (fstart >= last_face[2] && fstop <= last_face[3])) 
-	    {
-	      tl->ftype  = 3;
-	    }
-	  else
-	    {
-	      ASSERT(0);
-	    }
+	  ASSERT(0);
 	}
 
       /* succ */
@@ -720,10 +661,8 @@ void init_thread_rangelist(comm_data *cd
 	  tl->succ = NULL;
 	}
     } 
+  check_free(ttype);
 
-  // thread local solver (face) data
-  solver_local.fpoint = fpoint;
-  solver_local.fnormal = fnormal;
 
   /* points of color */
   set_all_points_of_color(sd, tid, pid, ncolors);
