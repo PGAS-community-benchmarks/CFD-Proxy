@@ -52,7 +52,7 @@ void init_thread_meta_data(int *pid
 
 void eval_thread_comm(comm_data *cd);
 
-void test_thread_rangelist(solver_data *sd);
+void eval_thread_rangelist(solver_data *sd);
 
 solver_data_local* get_solver_data(void);
 

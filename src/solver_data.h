@@ -46,6 +46,15 @@ typedef struct RangeList_t
   int nsendcount;
   int *sendpartner;
   int *sendcount;
+  int **sendindex;
+  int **sendoffset;
+
+  // comm vars, color local, recv
+  int nrecvcount;
+  int *recvpartner;
+  int *recvcount;
+  int **recvindex;
+  int **recvoffset;
 
   // thread id
   int tid;

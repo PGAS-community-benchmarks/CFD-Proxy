@@ -25,10 +25,10 @@
 #include "threads.h"
 
 // threadprivate rangelist data
-static RangeList *color_local = NULL;
-#pragma omp threadprivate(color_local)
 static int ncolors_local = 0;
 #pragma omp threadprivate(ncolors_local)
+static RangeList *color_local = NULL;
+#pragma omp threadprivate(color_local)
 
 // threadprivate solver data
 static solver_data_local solver_local;
@@ -40,9 +40,9 @@ void init_rangelist(RangeList *fcolor)
   fcolor->succ = NULL;
 
   // meta data
-  fcolor->start = 0;
-  fcolor->stop = 0;
-  fcolor->ftype = 0; //  face type   
+  fcolor->start = -1;
+  fcolor->stop = -1;
+  fcolor->ftype = -1; //  face type   
 
   // points of color
   fcolor->nall_points_of_color = 0;
@@ -56,13 +56,20 @@ void init_rangelist(RangeList *fcolor)
   fcolor->nsendcount = 0;
   fcolor->sendpartner = NULL;
   fcolor->sendcount = NULL;
+  fcolor->sendindex = NULL;
+  fcolor->sendoffset = NULL;
+
+  // comm vars - recv
+  fcolor->nrecvcount = 0;
+  fcolor->recvpartner = NULL;
+  fcolor->recvcount = NULL;
+  fcolor->recvindex = NULL;
+  fcolor->recvoffset = NULL;
 
   // thread id
   fcolor->tid = -1; 
 
 }
-
-
 
 static void init_halo_type(int *htype
 			   , comm_data *cd
@@ -70,12 +77,12 @@ static void init_halo_type(int *htype
 			   )
 {
   int i,j;
-  for(i = 0; i < sd->nallpoints; i++) 
+  /* all own points */
+  for(i = 0; i < sd->nownpoints; i++) 
     {
-      htype[i] = 2;
+      htype[i] = 1;
     }
-
-  /* set halo type for sendindex data */
+  /* set halo type for sendindex data (inner halo) */
   for(i = 0; i < cd->ncommdomains; i++)
     {
       int k = cd->commpartner[i];
@@ -85,11 +92,15 @@ static void init_halo_type(int *htype
 	  for(j = 0; j < count; j++)
 	    {
 	      int pnt = cd->sendindex[k][j];
-	      htype[pnt] = 1;
+	      htype[pnt] = 2;
 	    }
 	}
     }
-
+  /* addpoints (outer halo) */
+  for(i = sd->nownpoints; i < sd->nallpoints; i++) 
+    {
+      htype[i] = 3;
+    }
 }
 
 
@@ -98,13 +109,11 @@ static void init_meta_data(int *pid
 			   , solver_data *sd
 			   )
 { 
-
   /* set thread range */
-  int nallpoints = sd->nallpoints;
-  int min_size = nallpoints/NTHREADS;
+  int min_size = sd->nallpoints/NTHREADS;
   int i, j, k;
 
-  for(i = 0; i < nallpoints; i++) 
+  for(i = 0; i < sd->nallpoints; i++) 
     {
       pid[i] = -1;
     }
@@ -142,14 +151,29 @@ static void init_meta_data(int *pid
 	  count += nall_points_of_color;
 	  ncolors++;
 	}
-
       rl_start =  rl_stop;
     }
 
+  /* re-assign cross edges ending in addpoints (outer halo) */
+  int face;
+  for (face = 0; face < sd->nfaces; face++)
+    {
+      int p0 = sd->fpoint[face][0];
+      int p1 = sd->fpoint[face][1];
+      if (p1 >= sd->nownpoints && pid[p0] != pid[p1])
+	{
+	  pid[p1] = pid[p0];
+	}
+      if (p0 >= sd->nownpoints && pid[p1] != pid[p0])
+	{
+	  pid[p0] = pid[p1];
+	}
+    }
+
   /* sanity check */
-  ASSERT(count >= sd->nownpoints);
+  ASSERT(count == sd->nallpoints);
   ASSERT(ncolors == sd->ncolors);
-  for(i = 0; i < sd->nownpoints; i++) 
+  for(i = 0; i < sd->nallpoints; i++) 
     {
       ASSERT(pid[i] != -1);
     }
@@ -165,18 +189,17 @@ static void set_all_points_of_color(solver_data *sd
 {
   int i, face;
   RangeList *color = color_local;
-  int    (*fpoint)[2]        = solver_local.fpoint;
+  int    (*fpoint)[2] = solver_local.fpoint;
   ASSERT (fpoint != NULL);
   ASSERT(sd->nallpoints > 0);
   ASSERT(color != NULL);
 
-  /* nall_points_of_color */
   int *tmp1   = check_malloc(sd->nallpoints * sizeof(int));
   for(i = 0; i < sd->nallpoints; i++) 
     {
       tmp1[i] = -1;
     }
-
+  /* all first points of color including outer halo */
   int nallpoints = 0;
   for(i = 0; i < ncolors; i++)
     {
@@ -186,12 +209,14 @@ static void set_all_points_of_color(solver_data *sd
 	{
 	  int p0 = fpoint[face][0];
 	  int p1 = fpoint[face][1];
-	  if (pid[p0] == tid && tmp1[p0] == -1)
+	  if (pid[p0] == tid && 
+	      tmp1[p0] == -1)
 	    {
 	      tmp1[p0] = i;
 	      npoints++;
 	    }
-	  if (pid[p1] == tid && tmp1[p1] == -1)
+	  if (pid[p1] == tid && 
+	      tmp1[p1] == -1)
 	    {
 	      tmp1[p1] = i;
 	      npoints++;
@@ -200,8 +225,6 @@ static void set_all_points_of_color(solver_data *sd
       rl->nall_points_of_color = npoints;
       nallpoints += npoints;
     }
-
-  /* free tmp space */
   check_free(tmp1);
 
   if (nallpoints == 0)
@@ -209,13 +232,11 @@ static void set_all_points_of_color(solver_data *sd
       return;
     }
   
-  /* all_points_of_color */
   int *tmp2   = check_malloc(sd->nallpoints * sizeof(int));  
   for(i = 0; i < sd->nallpoints; i++) 
     {
       tmp2[i] = -1;
     }
-
   int *points = check_malloc(nallpoints * sizeof(int));
   for(i = 0; i < ncolors; i++)
     {
@@ -227,20 +248,20 @@ static void set_all_points_of_color(solver_data *sd
 	{
 	  int p0 = fpoint[face][0];
 	  int p1 = fpoint[face][1];
-	  if (pid[p0] == tid && tmp2[p0] == -1)
+	  if (pid[p0] == tid && 
+	      tmp2[p0] == -1)
 	    {
 	      tmp2[p0] = i;
 	      rl->all_points_of_color[npoints++] = p0;
 	    }
-	  if (pid[p1] == tid && tmp2[p1] == -1)
+	  if (pid[p1] == tid && 
+	      tmp2[p1] == -1)
 	    {
 	      tmp2[p1] = i;
 	      rl->all_points_of_color[npoints++] = p1;
 	    }
 	}
     }
-
-  /* free tmp space */
   check_free(tmp2);  
 
 }
@@ -254,18 +275,17 @@ static void set_last_points_of_color(solver_data *sd
 {
   int i, face;
   RangeList *color = color_local;
-  int    (*fpoint)[2]        = solver_local.fpoint;
+  int    (*fpoint)[2] = solver_local.fpoint;
   ASSERT (fpoint != NULL);
   ASSERT(sd->nallpoints > 0);
   ASSERT(color != NULL);
-
 
   int *tmp1   = check_malloc(sd->nallpoints * sizeof(int));
   for(i = 0; i < sd->nallpoints; i++) 
     {
       tmp1[i] = 0;
     }
-
+  /* all finalized/last points of color */
   for(i = 0; i < ncolors; i++)
     {
       RangeList *rl = &(color[i]); 
@@ -273,17 +293,18 @@ static void set_last_points_of_color(solver_data *sd
         {
           int p0 = fpoint[face][0];
           int p1 = fpoint[face][1];
-          if (pid[p0] == tid && p0 < sd->nownpoints)
+          if (pid[p0] == tid && 
+	      p0 < sd->nownpoints)
             {
               tmp1[p0]++;
             }
-          if (pid[p1] == tid && p1 < sd->nownpoints)
+          if (pid[p1] == tid && 
+	      p1 < sd->nownpoints)
             {
               tmp1[p1]++;
             }
         }
     }
-
 
   int *tmp2   = check_malloc(sd->nallpoints * sizeof(int));
   for(i = 0; i < sd->nallpoints; i++) 
@@ -300,14 +321,16 @@ static void set_last_points_of_color(solver_data *sd
         {
           int p0 = fpoint[face][0];
           int p1 = fpoint[face][1];
-          if (pid[p0] == tid && p0 < sd->nownpoints)
+          if (pid[p0] == tid && 
+	      p0 < sd->nownpoints)
             {
               if (++tmp2[p0] == tmp1[p0])
                 {
                   npoints++;
                 }           
             }
-          if (pid[p1] == tid && p1 < sd->nownpoints)
+          if (pid[p1] == tid && 
+	      p1 < sd->nownpoints)
             {
               if (++tmp2[p1] == tmp1[p1])
                 {
@@ -318,15 +341,7 @@ static void set_last_points_of_color(solver_data *sd
       rl->nlast_points_of_color = npoints;
       nlastpoints += npoints;
       nfirstpoints += rl->nfirst_points_of_color;
-
-#ifdef DEBUG
-      printf("iProc: %6d tid: %4d color: %d ncolors: %d npoints: %d nlastpoints: %d nfirstpoints: %d\n"
-             ,cd->iProc,tid,i,ncolors,npoints,nlastpoints,nfirstpoints);
-      fflush(stdout);
-#endif
-
     }
-
   if (nlastpoints == 0)
     {
       return;
@@ -334,12 +349,11 @@ static void set_last_points_of_color(solver_data *sd
 
   /* sanity check */
   ASSERT(nlastpoints == nfirstpoints);
-
   for(i = 0; i < sd->nallpoints; i++) 
     {
       tmp2[i] = 0;
     }
-  /* last_points_of_color */
+
   int *points = check_malloc(nlastpoints * sizeof(int));
   for(i = 0; i < ncolors; i++)
     {
@@ -351,7 +365,8 @@ static void set_last_points_of_color(solver_data *sd
         {
           int p0 = fpoint[face][0];
           int p1 = fpoint[face][1];
-          if (pid[p0] == tid && p0 < sd->nownpoints)
+          if (pid[p0] == tid && 
+	      p0 < sd->nownpoints)
             {
               if (++tmp2[p0] == tmp1[p0])
                 {
@@ -359,7 +374,8 @@ static void set_last_points_of_color(solver_data *sd
                   rl->last_points_of_color[npoints++] = p0;
                 }           
             }
-          if (pid[p1] == tid && p1 < sd->nownpoints)
+          if (pid[p1] == tid && 
+	      p1 < sd->nownpoints)
             {
               if (++tmp2[p1] == tmp1[p1])
                 {
@@ -369,8 +385,6 @@ static void set_last_points_of_color(solver_data *sd
             }
         }
     }
-
-  /* free tmp space */
   check_free(tmp2);  
   check_free(tmp1);  
 
@@ -382,12 +396,12 @@ static void set_first_points_of_color(solver_data *sd
 {
   int i, k;
   RangeList *color = color_local;
-  int    (*fpoint)[2]        = solver_local.fpoint;
+  int    (*fpoint)[2] = solver_local.fpoint;
   ASSERT (fpoint != NULL);
 
   ASSERT(color != NULL);
 
-  /* nfirst_points_of_color */
+  /* all first points of color excluding outer halo */
   int nfirstpoints = 0;
   for(i = 0; i < ncolors; i++)
     {
@@ -412,7 +426,6 @@ static void set_first_points_of_color(solver_data *sd
       return;
     }
 
-  /* first_points_of_color */
   int *points = check_malloc(nfirstpoints * sizeof(int));
   for(i = 0; i < ncolors; i++)
     {
@@ -447,7 +460,9 @@ void init_thread_rangelist(comm_data *cd
     {
       int p0 = sd->fpoint[face][0];
       int p1 = sd->fpoint[face][1];
-      if (pid[p0] == tid || pid[p1] == tid)
+
+      if ((pid[p0] == tid && htype[p0] < 3) || 
+	  (pid[p1] == tid && htype[p1] < 3))
 	{
 	  nfaces++;
 	}
@@ -471,7 +486,8 @@ void init_thread_rangelist(comm_data *cd
     {
       int p0 = sd->fpoint[face][0];
       int p1 = sd->fpoint[face][1];
-      if (pid[p0] == tid || pid[p1] == tid)
+      if ((pid[p0] == tid && htype[p0] < 3) || 
+	  (pid[p1] == tid && htype[p1] < 3))
 	{
 	  memcpy(&(fpoint[nf][0])
 		 , &(sd->fpoint[face][0])
@@ -481,51 +497,61 @@ void init_thread_rangelist(comm_data *cd
 		 , &(sd->fnormal[face][0])
 		 , 3 * sizeof(double)
 		 );
+
+	  /* init type */
+	  ttype[nf] = -1;
+
 	  nf++;
 	}
     }
   ASSERT(nf == nfaces);
 
-  /* set ttype */
+  /* set tmp face type for sorting */
   for (face = 0; face < nfaces; face++)
     {
       int p0 = fpoint[face][0];
       int p1 = fpoint[face][1];
-      /* all halo faces with p1 == tid */
-      if ((pid[p0] != tid && pid[p1] == tid) && htype[p1] == 1)
+
+      if (htype[p1] == 2 || htype[p0] == 2)
 	{
-	  ttype[face] = 0;
+	  /* all inner halo faces, writing only p1 */      
+	  if (pid[p0] != tid || htype[p0] == 3)
+	    {
+	      ttype[face] = 0;
+	    }
+	  /* all inner halo faces, writing only p0 */      
+	  else if (pid[p1] != tid || htype[p1] == 3)
+	    {
+	      ttype[face] = 1;
+	    }
+	  /* all inner halo faces, writing p1/p0 */      
+	  else 
+	    {
+	      ttype[face] = 2;
+	    }
 	}
-      /* all halo faces with p0 == tid */
-      else if ((pid[p0] == tid && pid[p1] != tid) && htype[p0] == 1)
+      else
 	{
-	  ttype[face] = 1;
+	  /* all other faces, writing only p1 */      
+	  if (pid[p0] != tid || htype[p0] == 3)
+	    {
+	      ttype[face] = 3;
+	    }
+	  /* all other faces, writing only p0 */      
+	  else if (pid[p1] != tid || htype[p1] == 3)
+	    {
+	      ttype[face] = 4;
+	    }
+	  /* all other faces, writing p1/p0 */      
+	  else 
+	    {
+	      ttype[face] = 5;
+	    }
 	}
-      /* all halo faces with p0 == tid && p1 == tid */
-      else if ((pid[p0] == tid && pid[p1] == tid) && (htype[p0] == 1 || htype[p1] == 1))
-	{
-	  ttype[face] = 2;
-	}
-      /* all inner faces with p1 == tid */
-      else if ((pid[p0] != tid && pid[p1] == tid) && htype[p1] == 2)
-	{
-	  ttype[face] = 3;
-	}
-      /* all inner faces with p0 == tid */
-      else if ((pid[p0] == tid && pid[p1] != tid) && htype[p0] == 2)
-	{
-	  ttype[face] = 4;
-	}
-      /* all inner faces with p0 == tid && p1 == tid */
-      else if ((pid[p0] == tid && pid[p1] == tid) && (htype[p0] == 2 && htype[p1] == 2))
-	{
-	  ttype[face] = 5;
-	}
-      /* sanity check */
-      else 
-	{
-	  ASSERT(0);
-	}
+    }
+  for (face = 0; face < nfaces; face++)
+    {
+      ASSERT(ttype[face] != -1);
     }
 
   /* init permutation vector for sorting */
@@ -538,10 +564,10 @@ void init_thread_rangelist(comm_data *cd
   /* sort faces for type and p1/p0 */
   sort_faces(pm, fpoint, ttype, sd, nfaces);
 
+  /* fix face permutation */
   int     *tt     = check_malloc(nfaces * sizeof(int));
   int    (*fp)[2] = check_malloc(2 * nfaces * sizeof(int));
   double (*fn)[3] = check_malloc(3 * nfaces * sizeof(double));
-  /* fix face permutation */
   for (face = 0; face < nfaces; face++)
     {
       int tf = pm[face];
@@ -574,7 +600,8 @@ void init_thread_rangelist(comm_data *cd
   int ncolors = 0;
   for(face = 1 ; face < nfaces; face++)
     {
-      if((++count) == MAX_FACES_IN_COLOR || ttype[face] != ttype[face-1])	
+      if((++count) == MAX_FACES_IN_COLOR || 
+	 ttype[face] != ttype[face-1])	
 	{
 	  count = 0;
 	  ncolors++;
@@ -601,7 +628,8 @@ void init_thread_rangelist(comm_data *cd
   int start = 0;  
   for(face = 1 ; face < nfaces; face++)
     {
-      if((++count) == MAX_FACES_IN_COLOR || ttype[face] != ttype[face-1])	
+      if((++count) == MAX_FACES_IN_COLOR || 
+	 ttype[face] != ttype[face-1])	
 	{
 	  tl = &(color_local[i0]); 
 	  tl->start  = start;
@@ -620,7 +648,7 @@ void init_thread_rangelist(comm_data *cd
 
   ASSERT(i0 == ncolors);
 
-  /* set ftype, succ */
+  /* set face type value, succ */
   int i;
   for(i = 0; i < ncolors; i++)
     {
@@ -632,20 +660,24 @@ void init_thread_rangelist(comm_data *cd
       int fstart = tl->start;
 
       /* ftype, writing only p1 */
-      if(ttype[fstart] == 0 || ttype[fstart] == 3)
+      if(ttype[fstart] == 0 || 
+	 ttype[fstart] == 3)
 	{
-	  tl->ftype  = 3;
+	  tl->ftype = 1;
 	}
       /* ftype, writing only p0 */
-      else if (ttype[fstart] == 1 || ttype[fstart] == 4)
+      else if (ttype[fstart] == 1 || 
+	       ttype[fstart] == 4)
 	{
-	  tl->ftype  = 2;
+	  tl->ftype = 2;
 	}
       /* ftype, writing p0/p1 */
-      else if (ttype[fstart] == 2 || ttype[fstart] == 5)
+      else if (ttype[fstart] == 2 || 
+	       ttype[fstart] == 5)
 	{
-	  tl->ftype  = 1;
+	  tl->ftype = 3;
 	}
+      /* external, writing outer halo */
       else
 	{
 	  ASSERT(0);
@@ -662,7 +694,6 @@ void init_thread_rangelist(comm_data *cd
 	}
     } 
   check_free(ttype);
-
 
   /* points of color */
   set_all_points_of_color(sd, tid, pid, ncolors);
@@ -690,7 +721,8 @@ void init_thread_meta_data(int *pid
   /* init halo type */
   init_halo_type(htype, cd, sd);
 
-#ifdef DEBUG
+
+#ifdef DDEBUG
   if (cd->iProc == 0)
     {
       int face;
@@ -718,12 +750,21 @@ void eval_thread_comm(comm_data *cd)
       int const tid = omp_get_thread_num();
       RangeList *color;
 
+#ifdef DEBUG
       int ncolors = 0;
+      int scolors = 0;
       for (color = get_color(); color != NULL
 	     ; color = get_next_color(color)) 
 	{
 	  ncolors++;
+	  if (color->nsendcount > 0)
+	    {
+	      scolors++;
+	    }
 	}
+      printf("iProc: %6d tid: %4d ncolors: %d scolors: %d\n"
+	     ,cd->iProc,tid,ncolors,scolors);
+#endif
 
       int nsend = 0;
       for (color = get_color(); color != NULL
@@ -735,17 +776,18 @@ void eval_thread_comm(comm_data *cd)
 	      int i1 = color->sendpartner[i];
 	      int sendcount_color = color->sendcount[i];
 	      int sendcount_local = get_sendcount_local(i1);
-	      if (sendcount_color > 0 && sendcount_local > 0)
+	      if (sendcount_color > 0 && 
+		  sendcount_local > 0)
 		{		  
-		  int inc_local = set_inc_send_local(i1, sendcount_color);
+		  int inc_local = set_send_increment_local(i1, sendcount_color);
 		  if(inc_local % sendcount_local == 0)
 		    {
-		      int inc_global = set_inc_send(i1, sendcount_local);
+		      int inc_global = set_send_increment(i1, sendcount_local);
 		      int k = cd->commpartner[i1];
 		      if (inc_global % cd->sendcount[k] == 0)
 			{
-			  printf("iProc: %6d tid: %4d send num: %8d to: %6d -- complete. ncolors: %d final send color: %6d\n"
-				 ,cd->iProc,tid,cd->sendcount[k],k,ncolors,nsend);
+			  printf("iProc: %6d tid: %4d send num: %8d to: %6d -- complete. final send color: %6d\n"
+				 ,cd->iProc,tid,cd->sendcount[k],k,nsend);
 			}
 		    }
 		}
@@ -757,9 +799,7 @@ void eval_thread_comm(comm_data *cd)
 }
 
 
-
-
-void test_thread_rangelist(solver_data *sd)
+void eval_thread_rangelist(solver_data *sd)
 {
   int i0;
 
@@ -767,32 +807,63 @@ void test_thread_rangelist(solver_data *sd)
   int *tmp1 = check_malloc(sd->nallpoints * sizeof(int));
   int *tmp2 = check_malloc(sd->nallpoints * sizeof(int));
 
+
+  /* validate all_points_of_color */
   for(i0 = 0; i0 < sd->nallpoints; i0++)   
     {
       tmp1[i0] = -1;
-      tmp2[i0] = -1;
     }
-
 #pragma omp parallel default (none) shared(sd\
-            , tmp1, tmp2, stdout, stderr)
+            , tmp1, stdout, stderr)
     {
-
       int const tid = omp_get_thread_num();
-      int    (*fpoint)[2]        = solver_local.fpoint;
+      int    (*fpoint)[2] = solver_local.fpoint;
       RangeList *color;
 
       for (color = get_color(); color != NULL
 	     ; color = get_next_color(color)) 
 	{      
-
-	  /* validate all_points_of_color */
 	  int  nall_points_of_color = color->nall_points_of_color;
 	  int  *all_points_of_color = color->all_points_of_color;
-	  int i1, face;
+	  int i1;
 
 	  for(i1 = 0; i1 < nall_points_of_color; i1++) 
 	    {
 	      int pnt = all_points_of_color[i1];
+	      ASSERT(tmp1[pnt] == -1);
+	      tmp1[pnt] += 1;
+	    }
+	}
+    }
+  for(i0 = 0; i0 < sd->nallpoints; i0++) 
+    {      
+      ASSERT(tmp1[i0] == 0);
+    }
+
+  /* validate first_points_of_color, ftype and tid*/
+  for(i0 = 0; i0 < sd->nallpoints; i0++) 
+    {      
+      tmp1[i0] = -1;
+      tmp2[i0] = -1;
+    }
+#pragma omp parallel default (none) shared(sd\
+            , tmp1, tmp2, stdout, stderr)
+    {
+
+      int const tid = omp_get_thread_num();
+      int    (*fpoint)[2] = solver_local.fpoint;
+      RangeList *color;
+
+      for (color = get_color(); color != NULL
+	     ; color = get_next_color(color)) 
+	{      
+	  int  nfirst_points_of_color = color->nfirst_points_of_color;
+	  int  *first_points_of_color = color->first_points_of_color;
+	  int i1, face;
+
+	  for(i1 = 0; i1 < nfirst_points_of_color; i1++) 
+	    {
+	      int pnt = first_points_of_color[i1];
 	      ASSERT(tmp1[pnt] == -1);
 	      tmp1[pnt] = tid;
 	    }
@@ -807,18 +878,20 @@ void test_thread_rangelist(solver_data *sd)
 	      const int  p0    = fpoint[face][0];
 	      const int  p1    = fpoint[face][1];
 
-	      if (color->ftype != 3)
+	      if (color->ftype == 2 || 
+		  color->ftype == 3)
 		{
 		  if (tmp2[p0] == -1)
 		    {
 		      tmp2[p0] = tid;
 		    }
 		  else 
-		  {
-		    ASSERT(tmp2[p0] == tid);
-		  }
+		    {
+		      ASSERT(tmp2[p0] == tid);
+		    }
 		}
-	      if (color->ftype != 2)
+	      if (color->ftype == 1 || 
+		  color->ftype == 3)
 		{
 		  if (tmp2[p1] == -1)
 		    {
@@ -830,14 +903,52 @@ void test_thread_rangelist(solver_data *sd)
 		    }
 		}
 	    }
-
 	}
     }
-
   for(i0 = 0; i0 < sd->nownpoints; i0++)   
     {
       ASSERT(tmp1[i0] != -1);
       ASSERT(tmp2[i0] != -1);
+    }
+  for(i0 = sd->nownpoints; i0 < sd->nallpoints; i0++)   
+    {
+      ASSERT(tmp1[i0] == -1);
+      ASSERT(tmp2[i0] == -1);
+    }
+
+  /* validate last_points_of_color */
+  for(i0 = 0; i0 < sd->nallpoints; i0++)   
+    {
+      tmp1[i0] = -1;
+    }
+#pragma omp parallel default (none) shared(sd\
+            , tmp1, stdout, stderr)
+    {
+
+      int const tid = omp_get_thread_num();
+      int    (*fpoint)[2] = solver_local.fpoint;
+      RangeList *color;
+      for (color = get_color(); color != NULL
+	     ; color = get_next_color(color)) 
+	{      
+	  int  nlast_points_of_color = color->nlast_points_of_color;
+	  int  *last_points_of_color = color->last_points_of_color;
+	  int i1;
+	  for(i1 = 0; i1 < nlast_points_of_color; i1++) 
+	    {
+	      int pnt = last_points_of_color[i1];
+	      ASSERT(tmp1[pnt] == -1);
+	      tmp1[pnt] += 1;
+	    }
+	}
+    }
+  for(i0 = 0; i0 < sd->nownpoints; i0++) 
+    {      
+      ASSERT(tmp1[i0] == 0);
+    }
+  for(i0 = sd->nownpoints; i0 < sd->nallpoints; i0++)   
+    {
+      ASSERT(tmp1[i0] == -1);
     }
 
   check_free(tmp1);
@@ -850,10 +961,10 @@ static void gather_sendcount(comm_data *cd
 {
   int i, j, i0;
 
-  int **tmp1 = check_malloc(sd->nallpoints * sizeof(int*));;
+  int **idx = check_malloc(sd->nallpoints * sizeof(int*));
   for(i = 0; i < sd->nallpoints; i++)
     {
-      tmp1[i] = NULL;
+      idx[i] = NULL;
     }
   /* gather sendindex data per pnt, per target */
   for(i = 0; i < cd->ncommdomains; i++)
@@ -865,50 +976,51 @@ static void gather_sendcount(comm_data *cd
 	  for(j = 0; j < count; j++)
 	    {
 	      int pnt = cd->sendindex[k][j];
-	      if (tmp1[pnt] == NULL)
+	      if (idx[pnt] == NULL)
 		{
-		  tmp1[pnt] = check_malloc(cd->ncommdomains * sizeof(int));;
+		  idx[pnt] = check_malloc(cd->ncommdomains * sizeof(int));
 		  for(i0 = 0; i0 < cd->ncommdomains; i0++)   
 		    {
-		      tmp1[pnt][i0] = -1;
+		      idx[pnt][i0] = -1;
 		    }
-		}             
-	      ASSERT(tmp1[pnt][i] == -1);
-	      tmp1[pnt][i] = i;
+ 		}             
+	      // assert initial state per pnt, per target
+	      ASSERT(idx[pnt][i] == -1);
+	      idx[pnt][i] = j;
 	    }
 	}
     }
 
   /* assemble partial sendcounts per color, per target */
 #pragma omp parallel default (none) shared(cd, sd\
-            , tmp1, stdout, stderr)
+            , idx, stdout, stderr)
     {
       RangeList *color;
-      int  *tmp3 = check_malloc(cd->ncommdomains * sizeof(int));;
+      int  *nsendcount = check_malloc(cd->ncommdomains * sizeof(int));
 
       for (color = get_color(); color != NULL
 	     ; color = get_next_color(color)) 
 	{      
 	  int  nlast_points_of_color = color->nlast_points_of_color;
 	  int  *last_points_of_color = color->last_points_of_color;
-	  int k, i1;	
+	  int i1, i3;	
 
 	  /* gather color specific metadata */
 	  for(i1 = 0; i1 < cd->ncommdomains; i1++) 
 	    {
-	      tmp3[i1] = 0;
+	      nsendcount[i1] = 0;
 	    }
 	  for(i1 = 0; i1 < nlast_points_of_color; i1++) 
 	    {
 	      int pnt = last_points_of_color[i1];
-	      if (tmp1[pnt] != NULL)
+	      if (idx[pnt] != NULL)
 		{
-		  for(k = 0; k < cd->ncommdomains; k++)
+		  for(i3 = 0; i3 < cd->ncommdomains; i3++)
 		    {
-		      int dest = tmp1[pnt][k];
-		      if (dest != -1) 
+		      int j1 = idx[pnt][i3];
+		      if (j1 != -1) 
 			{
-			  tmp3[dest]++;
+			  nsendcount[i3]++;
 			}
 		    }
 		}
@@ -916,41 +1028,344 @@ static void gather_sendcount(comm_data *cd
 	  int nsend = 0;
 	  for(i1 = 0; i1 < cd->ncommdomains; i1++) 
 	    {
-	      if (tmp3[i1] > 0)
+	      if (nsendcount[i1] > 0)
 		{
 		  nsend++;
 		}
 	    }
 	  color->nsendcount = nsend;
 
-	  /* init sends, color local */
-	  if (color->nsendcount > 0)
-	    {
-	      color->sendpartner = check_malloc(color->nsendcount * sizeof(int));
-	      color->sendcount = check_malloc(color->nsendcount * sizeof(int));
-	      int i2 = 0;
-	      for(i1 = 0; i1 < cd->ncommdomains; i1++) 
-		{
-		  if (tmp3[i1] > 0)
-		    {
-		      color->sendpartner[i2] = i1;
-		      color->sendcount[i2] = tmp3[i1];
-		      i2++;
-		    }
-		}
-	    }
+          /* init sends, color local */
+          if (color->nsendcount > 0)
+            {
+              color->sendpartner = check_malloc(color->nsendcount * sizeof(int));
+              color->sendcount   = check_malloc(color->nsendcount * sizeof(int));
+              color->sendindex   = check_malloc(color->nsendcount * sizeof(int*));
+              color->sendoffset  = check_malloc(color->nsendcount * sizeof(int*));
+
+              int i2 = 0;
+              for(i1 = 0; i1 < cd->ncommdomains; i1++) 
+                {
+                  if (nsendcount[i1] > 0)
+                    {
+                      color->sendpartner[i2] = i1;
+                      color->sendcount[i2]   = nsendcount[i1];
+                      color->sendindex[i2]   = check_malloc(nsendcount[i1] * sizeof(int));
+                      color->sendoffset[i2]  = check_malloc(nsendcount[i1] * sizeof(int));
+
+                      int i4 = 0;
+                      for(i3 = 0; i3 < nlast_points_of_color; i3++) 
+                        {
+                          int pnt = last_points_of_color[i3];
+                          if (idx[pnt] != NULL)
+                            {
+                              int j1 = idx[pnt][i1];
+                              if (j1 != -1) 
+                                {
+                                  color->sendindex[i2][i4]  = pnt;
+				  color->sendoffset[i2][i4] = j1;
+				  i4++;
+                                }
+                            }
+                        }
+                      ASSERT(i4 == color->sendcount[i2]);
+                      i2++;
+                    }
+                }
+              ASSERT(i2 == color->nsendcount);
+            }
 	}
-      check_free(tmp3);
+      check_free(nsendcount);
     }
 
   for(i = 0; i < sd->nallpoints; i++)
     {
-      if (tmp1[i] != NULL)
+      if (idx[i] != NULL)
 	{
-	  check_free(tmp1[i]);
+	  check_free(idx[i]);
 	}
     }
-  check_free(tmp1);
+  check_free(idx);
+
+
+  /* flag for testing color sendindex */
+  int *flag = check_malloc(sd->nallpoints * sizeof(int));
+  for(i = 0; i < sd->nallpoints; i++)
+    {
+      flag[i] = 0;
+    }
+
+  /* testing for multiple sends per pnt  */
+  for(i = 0; i < cd->ncommdomains; i++)
+    {
+      int k = cd->commpartner[i];
+      int count = cd->sendcount[k];      
+      if(count > 0)
+	{
+	  for(j = 0; j < count; j++)
+	    {
+	      int pnt = cd->sendindex[k][j];
+	      flag[pnt] -= 1;
+	    }
+	}
+    }
+
+  /* assemble partial sendcounts per color, per target */
+#pragma omp parallel default (none) shared(cd, sd\
+           , flag, stdout, stderr)
+    {
+      RangeList *color;
+      for (color = get_color(); color != NULL
+	     ; color = get_next_color(color)) 
+	{      
+	  int i2, i4;	
+	  for(i2 = 0; i2 < color->nsendcount; i2++) 
+	    {
+	      int i1 = color->sendpartner[i2];
+	      for(i4 = 0; i4 < color->sendcount[i2]; i4++) 
+		{
+		  int pnt = color->sendindex[i2][i4];
+		  flag[pnt] += 1;
+		}
+	    }
+	}
+    }
+
+  for(i = 0; i < sd->nallpoints; i++)
+    {
+      ASSERT(flag[i] == 0);
+    }
+  check_free(flag);
+
+
+}
+
+static void gather_recvcount(comm_data *cd
+			     , solver_data *sd)
+{
+  int i, j;
+
+  int *idx = check_malloc(sd->nallpoints * sizeof(int));
+  int *own  = check_malloc(sd->nallpoints * sizeof(int));
+  for(i = 0; i < sd->nallpoints; i++)
+    {
+      idx[i] = -1;
+      own[i] = -1;
+    }
+
+  /* gather recvindex data per pnt - similar to addpoint own */
+  for(i = 0; i < cd->ncommdomains; i++)
+    {
+      int k = cd->commpartner[i];
+      if(cd->recvcount[k] > 0)
+	{
+	  for(j = 0; j < cd->recvcount[k]; j++)
+	    {
+	      int pnt = cd->recvindex[k][j];
+	      ASSERT(pnt >= sd->nownpoints);
+	      ASSERT(idx[pnt] == -1);
+	      ASSERT(own[pnt] == -1);
+	      idx[pnt] = j;	      
+	      own[pnt] = i;
+	    }
+	}
+    }
+
+
+  /* assemble partial recvcounts per color, per target */
+#pragma omp parallel default (none) shared(cd, sd			\
+					   , idx, own, stdout, stderr)
+  {
+    RangeList *color;
+    int  *nrecvcount = check_malloc(cd->ncommdomains * sizeof(int));
+
+    for (color = get_color(); color != NULL
+	   ; color = get_next_color(color)) 
+      {      
+	int  nall_points_of_color = color->nall_points_of_color;
+	int  *all_points_of_color = color->all_points_of_color;
+	int i1, i3;	
+
+	/* gather color specific metadata */
+	for(i1 = 0; i1 < cd->ncommdomains; i1++) 
+	  {
+	    nrecvcount[i1] = 0;
+	  }
+	for(i1 = 0; i1 < nall_points_of_color; i1++) 
+	  {
+	    int pnt = all_points_of_color[i1];
+	    if (pnt >= cd->nownpoints)
+	      {
+		ASSERT(idx[pnt] != -1);
+		ASSERT(own[pnt] != -1);
+		i3 = own[pnt];
+		nrecvcount[i3]++;		  
+	      }
+	  }
+
+	int nrecv = 0;
+	for(i1 = 0; i1 < cd->ncommdomains; i1++) 
+	  {
+	    if (nrecvcount[i1] > 0)
+	      {
+		nrecv++;
+	      }
+	  }
+	color->nrecvcount = nrecv;
+
+	/* init recvs, color local */
+	if (color->nrecvcount > 0)
+	  {
+	    color->recvpartner = check_malloc(color->nrecvcount * sizeof(int));
+	    color->recvcount   = check_malloc(color->nrecvcount * sizeof(int));
+	    color->recvindex   = check_malloc(color->nrecvcount * sizeof(int*));
+	    color->recvoffset  = check_malloc(color->nrecvcount * sizeof(int*));
+
+	    int i2 = 0;
+	    for(i1 = 0; i1 < cd->ncommdomains; i1++) 
+	      {
+		if (nrecvcount[i1] > 0)
+		  {
+		    color->recvpartner[i2] = i1;
+		    color->recvcount[i2]   = nrecvcount[i1];
+		    color->recvindex[i2]   = check_malloc(nrecvcount[i1] * sizeof(int));
+		    color->recvoffset[i2]  = check_malloc(nrecvcount[i1] * sizeof(int));
+
+		    int i4 = 0;
+		    for(i3 = 0; i3 < nall_points_of_color; i3++) 
+		      {
+			int pnt = all_points_of_color[i3];
+			if (pnt >= cd->nownpoints && 
+			    own[pnt] == i1)
+			  {
+			    int j1 = idx[pnt];
+			    ASSERT(j1 != -1);
+			    color->recvindex[i2][i4]  = pnt;
+			    color->recvoffset[i2][i4] = j1;
+			    i4++;
+			  }
+		      }
+		    ASSERT(i4 == color->recvcount[i2]);
+		    i2++;
+		  }
+	      }
+	    ASSERT(i2 == color->nrecvcount);
+	  }
+      }
+    check_free(nrecvcount);
+  }
+
+
+
+  /* flag for testing color recvindex */
+  int *flag = check_malloc(sd->nallpoints * sizeof(int));
+  for(i = 0; i < sd->nallpoints; i++)
+    {
+      flag[i] =  0;
+    }
+
+  /* testing for multiple recvs per pnt  */
+  for(i = 0; i < cd->ncommdomains; i++)
+    {
+      int k = cd->commpartner[i];
+      int count = cd->recvcount[k];      
+      if(count > 0)
+	{
+	  for(j = 0; j < count; j++)
+	    {
+	      int pnt = cd->recvindex[k][j];
+	      ASSERT(flag[pnt] == 0);
+	      flag[pnt] -= 1;
+	    }
+	}
+    }
+
+
+  for(i = sd->nownpoints; i < sd->nallpoints; i++)
+    {
+      ASSERT(flag[i] ==  -1);
+    }
+
+  /* assemble partial recvcounts per color, per target */
+#pragma omp parallel default (none) shared(cd, sd			\
+	   , flag, own, stdout, stderr)
+  {
+    RangeList *color;
+    int  *nrecvcount = check_malloc(cd->ncommdomains * sizeof(int));
+
+    for (color = get_color(); color != NULL
+	   ; color = get_next_color(color)) 
+      {      
+	int  nall_points_of_color = color->nall_points_of_color;
+	int  *all_points_of_color = color->all_points_of_color;
+	int i3;
+	for(i3 = 0; i3 < nall_points_of_color; i3++) 
+	  {
+	    int pnt = all_points_of_color[i3];
+	    if (pnt >= cd->nownpoints)
+	      {
+		ASSERT(flag[pnt] == -1);
+		flag[pnt] += 1;
+	      }
+	  }
+      }
+  }	     
+
+  for(i = 0; i < sd->nallpoints; i++)
+    {
+      ASSERT(flag[i] == 0);
+    }
+
+
+  check_free(idx);
+  check_free(own);
+
+
+  /* testing for multiple recvs per pnt  */
+  for(i = 0; i < cd->ncommdomains; i++)
+    {
+      int k = cd->commpartner[i];
+      int count = cd->recvcount[k];      
+      if(count > 0)
+	{
+	  for(j = 0; j < count; j++)
+	    {
+	      int pnt = cd->recvindex[k][j];
+	      ASSERT(flag[pnt] == 0);
+	      flag[pnt] -= 1;
+	    }
+	}
+    }
+
+
+  /* assemble partial recvcounts per color, per target */
+#pragma omp parallel default (none) shared(cd, sd			\
+					   , flag, stdout, stderr)
+  {
+    RangeList *color;
+    for (color = get_color(); color != NULL
+	   ; color = get_next_color(color)) 
+      {      
+	int i2, i4;	
+	for(i2 = 0; i2 < color->nrecvcount; i2++) 
+	  {
+	    int i1 = color->recvpartner[i2];
+	    for(i4 = 0; i4 < color->recvcount[i2]; i4++) 
+	      {
+		int pnt = color->recvindex[i2][i4];
+		ASSERT(flag[pnt] == -1);
+		flag[pnt] += 1;
+	      }
+	  }
+      }
+  }
+
+  for(i = 0; i < sd->nallpoints; i++)
+    {
+      ASSERT(flag[i] == 0);
+    }
+  check_free(flag);
+
 
 }
 
@@ -961,6 +1376,9 @@ void init_thread_comm(comm_data *cd
 
   /* determine required sends per color */
   gather_sendcount(cd, sd);
+
+  /* determine required recvs per color */
+  gather_recvcount(cd, sd);
 
 }
 

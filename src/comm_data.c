@@ -53,8 +53,6 @@ static void init_communication_data(int iProc, int nProc, comm_data *cd)
   cd->sendindex = NULL;
 
   cd->nreq = 0;
-  cd->nrecv = 0;
-  cd->nsend = 0;
   cd->req = NULL;
   cd->stat = NULL;
   cd->recvbuf = NULL;
@@ -65,6 +63,8 @@ static void init_communication_data(int iProc, int nProc, comm_data *cd)
   cd->local_send_offset = NULL;
   cd->notification = NULL;
 
+  cd->send_flag = NULL;
+  cd->recv_flag = NULL;
   cd->send_stage = 0;
   cd->recv_stage = 0;
 
@@ -144,6 +144,7 @@ static void create_recvsend_index(comm_data *cd)
 	  int count = 0;
 	  cd->recvindex[k] 
 	    = check_malloc(cd->recvcount[k] * sizeof(int));
+
 	  for(j = 0; j < nadd; j++)
 	    {
 	      if(cd->addpoint_owner[j] == k)

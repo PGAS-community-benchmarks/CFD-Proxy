@@ -44,6 +44,9 @@ void mpidma_async_wait(void);
 
 void free_mpidma_win(void);
 
+void *get_sndbuf(void);
+
+void *get_rcvbuf(void);
 
 #endif
 
