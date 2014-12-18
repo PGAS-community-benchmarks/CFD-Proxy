@@ -75,13 +75,13 @@ static void compute_gradients_gg(RangeList *color, solver_data *sd)
 	  const double val = 0.5 * (var[p0][eq] + var[p1][eq]);
 	  const double vx = anx * val, vy = any * val, vz = anz * val;
 
-	  if (ftype != 3)
+	  if (ftype == 2 || ftype == 3)
 	    {
 	      grad[p0][eq][0] += vx; 
 	      grad[p0][eq][1] += vy;
 	      grad[p0][eq][2] += vz;
 	    }
-	  if (ftype != 2)
+	  if (ftype == 1 || ftype == 3)
 	    {
 	      grad[p1][eq][0] -= vx;
 	      grad[p1][eq][1] -= vy;

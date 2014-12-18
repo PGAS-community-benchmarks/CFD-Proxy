@@ -23,8 +23,6 @@
 
 #define DATAKEY 4712
 
-
-
 void init_mpi_requests(comm_data *cd, int dim2)
 {
   int i;
@@ -32,55 +30,41 @@ void init_mpi_requests(comm_data *cd, int dim2)
   ASSERT(dim2 == max_elem_sz);  
   size_t szd = sizeof(double);
 
-  ASSERT(cd->nrecv == 0);
-  ASSERT(cd->nsend == 0);
   ASSERT(cd->nreq == 0);
   
   size_t szr = 2 * cd->ncommdomains * sizeof(MPI_Request);
   size_t szs = 2 * cd->ncommdomains * sizeof(MPI_Status);   
   cd->req   = (MPI_Request *)check_malloc(szr);
   cd->stat  = (MPI_Status  *)check_malloc(szs);
+
   cd->nreq  = cd->ncommdomains;
 
-  int rsz = 0, ssz = 0;
+  cd->sendbuf = check_malloc(cd->ncommdomains);
+  cd->recvbuf = check_malloc(cd->ncommdomains);
+  for(i = 0; i < cd->ncommdomains; i++)
+    {
+      cd->sendbuf[i] = NULL;
+      cd->recvbuf[i] = NULL;
+    }
   for(i = 0; i < cd->ncommdomains; i++)
     {
       int k = cd->commpartner[i];
-      ssz += dim2 * cd->sendcount[k] * max_elem_sz * szd;
-      rsz += dim2 * cd->recvcount[k] * max_elem_sz * szd;
+      if (cd->sendcount[k] > 0)
+	{
+	  cd->sendbuf[i]=check_malloc(dim2 * cd->sendcount[k] * max_elem_sz * szd);
+	}
+      if (cd->recvcount[k] > 0)
+	{
+	  cd->recvbuf[i]=check_malloc(dim2 * cd->recvcount[k] * max_elem_sz * szd);
+	}
     }  
 
-  cd->sendbuf = check_malloc(ssz);
-  cd->nsend = ssz;
-
-  cd->recvbuf = check_malloc(rsz);
-  cd->nrecv = rsz;
-
-}
-
-
-static void exchange_dbl_mpi_copy_out(comm_data *cd
-				      , double *data
-				      , int dim2
-				      , int k
-				      )
-{
-  int *recvcount    = cd->recvcount;
-  int **recvindex   = cd->recvindex;
-
-  int j;
-  double *rbuf = cd->recvbuf;
-  int count = recvcount[k];
-
-  if(count > 0)
+  cd->send_flag = check_malloc(cd->ncommdomains*sizeof(int));
+  cd->recv_flag = check_malloc(cd->ncommdomains*sizeof(int));
+  for(i = 0; i < cd->ncommdomains; i++)
     {
-      for(j = 0; j < count; j++)
-	{
-	  int n1 = dim2 * j;
-	  int n2 = dim2 * recvindex[k][j];
-	  memcpy(&data[n2], &rbuf[n1], dim2 * sizeof(double));
-	}
-      rbuf += dim2 * count;
+      cd->send_flag[i] = 0;
+      cd->recv_flag[i] = 0;
     }
 
 }
@@ -98,7 +82,6 @@ void exchange_dbl_mpi_send(comm_data *cd
 
   int j;
   size_t size, szd = sizeof(double);
-  double *sbuf = cd->sendbuf;
 
   /* send */
   int k = commpartner[i];
@@ -106,16 +89,9 @@ void exchange_dbl_mpi_send(comm_data *cd
  
   if(count > 0)
     {
-      for(j = 0; j < count; j++)
-	{
-	  int n1 = dim2 * j;
-	  int n2 = dim2 * sendindex[k][j];
-	  memcpy(&sbuf[n1], &data[n2], dim2 * sizeof(double));
-	}
-
+      double *sbuf = cd->sendbuf[i];
       count *= dim2;
       size = count * szd;
-
       MPI_Isend(sbuf
 		, size
 		, MPI_BYTE
@@ -124,8 +100,6 @@ void exchange_dbl_mpi_send(comm_data *cd
 		, MPI_COMM_WORLD
 		, &(cd->req[ncommdomains + i])
 		);
-
-      sbuf += count;
     }
 }
 
@@ -141,7 +115,6 @@ void exchange_dbl_mpi_post_recv(comm_data *cd
 
   int i;
   size_t size, szd = sizeof(double);
-  double *rbuf = cd->recvbuf; 
 
   /* recv */
   for(i = 0; i < ncommdomains; i++)
@@ -151,6 +124,7 @@ void exchange_dbl_mpi_post_recv(comm_data *cd
 
       if(count > 0)
 	{
+	  double *rbuf = cd->recvbuf[i]; 
 	  size  = count * szd;
 	  MPI_Irecv(rbuf
 		   , size
@@ -160,7 +134,6 @@ void exchange_dbl_mpi_post_recv(comm_data *cd
 		   , MPI_COMM_WORLD
 		    , &(cd->req[i])
 		   );
-	  rbuf += count;
 	}
     }
 
@@ -173,8 +146,6 @@ void exchange_dbl_mpi_bulk_sync(comm_data *cd
 				)
 {
   int ncommdomains  = cd->ncommdomains;
-  int nsend         = cd->nsend;
-  int nrecv         = cd->nrecv;
   int nreq          = cd->nreq;
 
   int *commpartner  = cd->commpartner;
@@ -183,12 +154,10 @@ void exchange_dbl_mpi_bulk_sync(comm_data *cd
   int **sendindex   = cd->sendindex;
   int **recvindex   = cd->recvindex;
 
-  int i;
+  int i,j;
 
   ASSERT(dim2 > 0);
   ASSERT(ncommdomains != 0);
-  ASSERT(nsend > 0);
-  ASSERT(nrecv > 0);
   ASSERT(nreq > 0);
 
   ASSERT(sendcount != NULL);
@@ -201,19 +170,34 @@ void exchange_dbl_mpi_bulk_sync(comm_data *cd
   if (this_is_the_last_thread())
     {
       exchange_dbl_mpi_post_recv(cd, dim2);      
-      for(i = 0; i < ncommdomains; i++)
-	{
-	  exchange_dbl_mpi_send(cd, data, dim2, i);
-	}      
-      MPI_Waitall(2 * ncommdomains
-		  , cd->req
-		  , cd->stat
-		  );      
-      /* copy the data from the recvbuf into out data field */
+
       for(i = 0; i < ncommdomains; i++)
 	{
 	  int k = commpartner[i];
-	  exchange_dbl_mpi_copy_out(cd, data, dim2, k);
+	  int count = sendcount[k];
+	  if (count > 0)
+	    {
+	      double *sbuf = cd->sendbuf[i];	  
+	      exchange_dbl_copy_in(cd, sbuf, data, dim2, i);
+	      exchange_dbl_mpi_send(cd, data, dim2, i);
+	    }
+	}      
+
+      MPI_Waitall(2 * ncommdomains
+		  , cd->req
+		  , cd->stat
+		  );
+      for(i = 0; i < ncommdomains; i++)
+	{
+	  cd->send_flag[i]++;
+	  cd->recv_flag[i]++;
+	}
+
+      /* copy the data from the recvbuf into out data field */
+      for(i = 0; i < ncommdomains; i++)
+	{
+	  double *rbuf = cd->recvbuf[i];
+	  exchange_dbl_copy_out(cd, rbuf, data, dim2, i);
 	}
 
       // inc stage counter
@@ -233,8 +217,6 @@ void exchange_dbl_mpi_early_recv(comm_data *cd
 				 )
 {
   int ncommdomains  = cd->ncommdomains;
-  int nsend         = cd->nsend;
-  int nrecv         = cd->nrecv;
   int nreq          = cd->nreq;
 
   int *commpartner  = cd->commpartner;
@@ -243,12 +225,10 @@ void exchange_dbl_mpi_early_recv(comm_data *cd
   int **sendindex   = cd->sendindex;
   int **recvindex   = cd->recvindex;
 
-  int i;
+  int i,j;
 
   ASSERT(dim2 > 0);
   ASSERT(ncommdomains != 0);
-  ASSERT(nsend > 0);
-  ASSERT(nrecv > 0);
   ASSERT(nreq > 0);
 
   ASSERT(sendcount != NULL);
@@ -262,17 +242,31 @@ void exchange_dbl_mpi_early_recv(comm_data *cd
     {
       for(i = 0; i < ncommdomains; i++)
 	{
-	  exchange_dbl_mpi_send(cd, data, dim2, i);
+	  int k = commpartner[i];
+	  int count = sendcount[k];
+	  if (count > 0)
+	    {
+	      double *sbuf = cd->sendbuf[i];	  
+	      exchange_dbl_copy_in(cd, sbuf, data, dim2, i);
+	      exchange_dbl_mpi_send(cd, data, dim2, i);
+	    }
 	}      
       MPI_Waitall(2 * ncommdomains
 		  , cd->req
 		  , cd->stat
 		  );      
+
+      for(i = 0; i < ncommdomains; i++)
+	{
+	  cd->send_flag[i]++;
+	  cd->recv_flag[i]++;
+	}
+
       /* copy the data from the recvbuf into out data field */
       for(i = 0; i < ncommdomains; i++)
 	{
-	  int k = commpartner[i];
-	  exchange_dbl_mpi_copy_out(cd, data, dim2, k);
+	  double *rbuf = cd->recvbuf[i];
+	  exchange_dbl_copy_out(cd, rbuf, data, dim2, i);
 	}
 
       // inc stage counter
@@ -298,8 +292,6 @@ void exchange_dbl_mpi_async(comm_data *cd
 			    )
 {
   int ncommdomains  = cd->ncommdomains;
-  int nsend         = cd->nsend;
-  int nrecv         = cd->nrecv;
   int nreq          = cd->nreq;
 
   int *commpartner  = cd->commpartner;
@@ -307,12 +299,10 @@ void exchange_dbl_mpi_async(comm_data *cd
   int *recvcount    = cd->recvcount;
   int **sendindex   = cd->sendindex;
   int **recvindex   = cd->recvindex;
-
+  int i;
 
   ASSERT(dim2 > 0);
   ASSERT(ncommdomains != 0);
-  ASSERT(nsend > 0);
-  ASSERT(nrecv > 0);
   ASSERT(nreq > 0);
 
   ASSERT(sendcount != NULL);
@@ -324,7 +314,6 @@ void exchange_dbl_mpi_async(comm_data *cd
   
   if (this_is_the_first_thread())
     {
-      int i;
       for (i = 0; i < ncommdomains; ++i)
 	{
 	  int id = -1;
@@ -335,21 +324,52 @@ void exchange_dbl_mpi_async(comm_data *cd
 		      );
 
 	  ASSERT(id >= 0 && id < ncommdomains);      
-	  int k = commpartner[id];
+
+	  // flag received buffer 
+	  cd->recv_flag[id]++;
+
+#ifndef USE_MPI_PARALLEL_SCATTER
+	  /* copy the data from the recvbuf into out data field */
+	  double *rbuf = cd->recvbuf[id];
+	  exchange_dbl_copy_out(cd, rbuf, data, dim2, id);	  
+#endif
+	} 
+    }
+
+
+#ifdef USE_MPI_PARALLEL_SCATTER
+  for (i = 0; i < ncommdomains; ++i)
+    {
+      int nrecv = get_recvcount_local(i);
+      if (nrecv > 0)
+	{
+	  volatile int flag;
+	  while ((flag = cd->recv_flag[i]) == cd->recv_stage)
+	    {
+	      _mm_pause();
+	    }
+	  /* sanity check */
+	  ASSERT(flag == (cd->recv_stage + 1));
 
 	  /* copy the data from the recvbuf into out data field */
-	  exchange_dbl_mpi_copy_out(cd, data, dim2, k);	  
+	  double *rbuf = cd->recvbuf[i];
+	  exchange_dbl_copy_out_local(rbuf, data, dim2, i);	  
 	} 
+    }
+#endif
 
+  if (this_is_the_last_thread())
+    {
+      /* wait for send */
       MPI_Waitall(ncommdomains
 		  , &(cd->req[ncommdomains])
 		  , &(cd->stat[ncommdomains])
 		  );
-    }
 
-
-  if (this_is_the_last_thread())
-    {
+      for(i = 0; i < ncommdomains; i++)
+	{
+	  cd->send_flag[i]++;
+	}
 
       // inc stage counter
       cd->send_stage++;
@@ -373,15 +393,17 @@ void exchange_dbl_mpi_async(comm_data *cd
 		  , cd->stat
 		  );
 
+      for(i = 0; i < ncommdomains; i++)
+	{
+	  cd->recv_flag[i]++;
+	  cd->send_flag[i]++;
+	}
 
       int i;
       for (i = 0; i < ncommdomains; ++i)
 	{
-	  int k = commpartner[i];
-
-	  /* copy the data from the recvbuf into out data field */
-	  exchange_dbl_mpi_copy_out(cd, data, dim2, k);
-	  
+	  double *rbuf = cd->recvbuf[i];
+	  exchange_dbl_copy_out(cd, rbuf, data, dim2, i);	  
 	} 
 
       // inc stage counter

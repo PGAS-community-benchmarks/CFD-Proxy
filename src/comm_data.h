@@ -34,12 +34,10 @@ typedef struct
 
   /* comm vars mpi */
   int nreq;
-  int nrecv;
-  int nsend;
   MPI_Request *req;
   MPI_Status *stat;
-  double *recvbuf;
-  double *sendbuf;
+  double **recvbuf;
+  double **sendbuf;
 
   /* offset vars gaspi */
   gaspi_offset_t *remote_recv_offset;
@@ -48,6 +46,8 @@ typedef struct
   gaspi_notification_id_t *notification;
 
   /* global stage counter */
+  volatile int *recv_flag;
+  volatile int *send_flag;
   volatile int recv_stage;
   volatile int send_stage;
 

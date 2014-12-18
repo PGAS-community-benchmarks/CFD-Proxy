@@ -1,21 +1,27 @@
-GPI2_DIR = $(HOME)/GPI2-1.1.0_mvapich2-2.1a
-NETCDF_DIR = $(HOME)/netcdf-4.2.1.1
-MPI_DIR=$(HOME)/mvapich2-2.1a
-CC = $(MPI_DIR)/bin/mpicc
+GPI2_DIR = $(HOME)/GPI2-1.1.1_intel-5.0.1.035.mic
+NETCDF_DIR = $(HOME)/netcdf-4.2.1.1.mic
+MPI_DIR=/export/opt/intel2015/impi/5.0.1.035/mic
+CC = $(MPI_DIR)/bin/mpiicc
 
 BIN += hybrid.f6.exe
 
 CFLAGS += -Wall
 CFLAGS += -Wextra
 CFLAGS += -Wshadow
-CFLAGS += -O2 -g
+CFLAGS += -O2 -g -mmic
 CFLAGS += -std=c99
-CFLAGS += -fopenmp
+CFLAGS += -openmp
 #CFLAGS += -DDEBUG 
 CFLAGS += -DGCC_EXTENSION
-CFLAGS += -DUSE_NTHREADS=12
-#CFLAGS += -DUSE_MPI_MULTI_THREADED
+CFLAGS += -DUSE_NTHREADS=240
+CFLAGS += -DUSE_MPI_MULTI_THREADED
 CFLAGS += -DUSE_GASPI
+CFLAGS += -DUSE_MPI_WAIT_ANY
+CFLAGS += -DUSE_PSCW_EARLY_WAIT
+CFLAGS += -DUSE_MPI_PARALLEL_GATHER
+CFLAGS += -DUSE_MPI_PARALLEL_SCATTER
+CFLAGS += -DUSE_GASPI_PARALLEL_GATHER
+CFLAGS += -DUSE_GASPI_PARALLEL_SCATTER
 
 ###############################################################################
 
@@ -26,7 +32,7 @@ INCLUDE_DIR += ..
 
 LIBRARY_DIR += $(NETCDF_DIR)/lib
 LIBRARY_DIR += $(MPI_DIR)/lib
-LIBRARY_DIR += $(GPI2_DIR)/lib64
+LIBRARY_DIR += $(GPI2_DIR)/lib64/mic
 
 
 LDFLAGS += $(addprefix -L,$(LIBRARY_DIR))
@@ -50,8 +56,8 @@ OBJ += util
 LIB += GPI2
 LIB += ibverbs
 #LIB += mpich
-#LIB += mpi_mt
-LIB += mpi
+LIB += mpi_mt
+#LIB += mpi
 LIB += netcdf
 LIB += m
 

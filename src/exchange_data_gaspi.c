@@ -83,8 +83,8 @@ void exchange_dbl_gaspi_write(comm_data *cd
   int **sendindex   = cd->sendindex;
 
   gaspi_queue_id_t queue_id = 0;
-  gaspi_offset_t *remote_recv_offset    = cd->remote_recv_offset;
   gaspi_offset_t *local_send_offset     = cd->local_send_offset;
+  gaspi_offset_t *remote_recv_offset    = cd->remote_recv_offset;
   gaspi_notification_id_t *notification = cd->notification;
 
   int j, count;
@@ -95,16 +95,6 @@ void exchange_dbl_gaspi_write(comm_data *cd
  
   if(count > 0)
     {
-      gaspi_pointer_t ptr;
-      SUCCESS_OR_DIE(gaspi_segment_ptr(buffer_id, &ptr));
-
-      double *sbuf = (double *) (ptr + local_send_offset[k]);
-      for(j = 0; j < count; j++)
-	{
-	  int n1 = dim2 * j;
-	  int n2 = dim2 * sendindex[k][j];
-	  memcpy(&sbuf[n1], &data[n2], dim2 * sizeof(double));
-	}
 
       gaspi_size_t size = count * dim2 * szd;
 
@@ -128,58 +118,32 @@ void exchange_dbl_gaspi_write(comm_data *cd
 }
 
 
-static void exchange_dbl_gaspi_copy_out(int recvcount
-					, int *recvindex
-					, gaspi_offset_t local_recv_offset
-					, double *data
-					, int dim2
-					, int buffer_id)
-{
-
-  int j;
-
-  /* copy the data from the recvbuffer into out data field */
-  if(recvcount > 0)
-    {
-      gaspi_pointer_t ptr;
-      SUCCESS_OR_DIE(gaspi_segment_ptr(2+buffer_id, &ptr));
-      
-      double *rbuf = (double *) (ptr + local_recv_offset);
-      for(j = 0; j < recvcount; j++)
-	{
-	  int n1 = dim2 * j;
-	  int n2 = dim2 * recvindex[j];
-	  memcpy(&data[n2], &rbuf[n1], dim2 * sizeof(double));
-	}
-    }
-
-}
-
-
 void exchange_dbl_gaspi_bulk_sync(comm_data *cd
 				  , double *data
 				  , int dim2
 				  )
 {
-
   int ncommdomains  = cd->ncommdomains;
   int *commpartner  = cd->commpartner;
   int *recvcount    = cd->recvcount;
-  int **recvindex   = cd->recvindex;
+  int *sendcount    = cd->sendcount;
 
   gaspi_offset_t *remote_recv_offset    = cd->remote_recv_offset;
   gaspi_offset_t *local_recv_offset     = cd->local_recv_offset;
+  gaspi_offset_t *local_send_offset     = cd->local_send_offset;
 
   int i;
+  int j, count;
 
   ASSERT(dim2 > 0);
   ASSERT(ncommdomains != 0);
 
   ASSERT(recvcount != NULL);
-  ASSERT(recvindex != NULL);
+  ASSERT(sendcount != NULL);
 
   ASSERT(remote_recv_offset != NULL);
   ASSERT(local_recv_offset != NULL);
+  ASSERT(local_send_offset != NULL);
 
   gaspi_number_t snum = 0; 
   SUCCESS_OR_DIE(gaspi_segment_num(&snum));
@@ -188,16 +152,24 @@ void exchange_dbl_gaspi_bulk_sync(comm_data *cd
   /* wait for completed computation before send */
   if (this_is_the_last_thread())
     {
-      int buffer_id;
-      /* send buffer_id */
-      buffer_id = cd->send_stage % 2;
       for(i = 0; i < ncommdomains; i++)
 	{
-	  exchange_dbl_gaspi_write(cd, data, dim2, buffer_id, i);
+	  int k = commpartner[i];
+	  if (sendcount[k] > 0)
+	    {
+	      int buffer_id = cd->send_stage % 2;
+	      gaspi_pointer_t ptr;
+	      SUCCESS_OR_DIE(gaspi_segment_ptr(buffer_id, &ptr));		  
+	      double *sbuf = (double *) (ptr + local_send_offset[k]);		  
+	      exchange_dbl_copy_in(cd
+				   , sbuf
+				   , data
+				   , dim2
+				   , i
+				   );
+	      exchange_dbl_gaspi_write(cd, data, dim2, buffer_id, i);
+	    }
 	}
-
-      /* recv buffer_id */
-      buffer_id = cd->recv_stage % 2;
 
       /* wait for notify */
       for(i = 0; i < ncommdomains; i++)
@@ -205,36 +177,47 @@ void exchange_dbl_gaspi_bulk_sync(comm_data *cd
 	  int k = commpartner[i];
 	  if(recvcount[k] > 0)
 	    {
-	      // wait for data notification
+	      int buffer_id = cd->recv_stage % 2;
 	      gaspi_notification_id_t id, test = i;
 	      gaspi_notification_t value;
-	      SUCCESS_OR_DIE(gaspi_notify_waitsome (2+buffer_id
+	      SUCCESS_OR_DIE(gaspi_notify_waitsome(2+buffer_id
 						    , test
 						    , 1
 						    , &id
 						    , GASPI_BLOCK
 						    ));
 	      ASSERT (id == test);	  
-	      SUCCESS_OR_DIE (gaspi_notify_reset (2+buffer_id
+	      SUCCESS_OR_DIE (gaspi_notify_reset(2+buffer_id
 						  , id
 						  , &value
 						  ));
 	      ASSERT (value == 1);
 	    }
 	}
+
       /* copy the data from the recvbuffer into out data field */
       for(i = 0; i < ncommdomains; i++)
 	{
 	  int k = commpartner[i];
-	  exchange_dbl_gaspi_copy_out(recvcount[k]
-				      , recvindex[k]
-				      , local_recv_offset[k]
-				      , data
-				      , dim2
-				      , buffer_id
-				      );
+	  ASSERT(recvcount[k] > 0);	 
+
+	  int buffer_id = cd->recv_stage % 2;
+	  gaspi_pointer_t ptr;
+	  SUCCESS_OR_DIE(gaspi_segment_ptr(2+buffer_id, &ptr));		  
+	  double *rbuf = (double *) (ptr + local_recv_offset[k]);		  
+	  exchange_dbl_copy_out(cd
+				, rbuf
+				, data
+				, dim2
+				, i
+				);
 	}
   
+      for(i = 0; i < ncommdomains; i++)
+	{
+	  cd->send_flag[i]++;
+	  cd->recv_flag[i]++;
+	}
       // inc stage counter
       cd->send_stage++;
       cd->recv_stage++;
@@ -253,26 +236,87 @@ void exchange_dbl_gaspi_async(comm_data *cd
   int ncommdomains  = cd->ncommdomains;
   int *commpartner  = cd->commpartner;
   int *recvcount    = cd->recvcount;
-  int **recvindex   = cd->recvindex;
 
-  gaspi_offset_t *local_recv_offset     = cd->local_recv_offset;
+  gaspi_offset_t *local_recv_offset = cd->local_recv_offset;
 
   ASSERT(dim2 > 0);
   ASSERT(ncommdomains != 0);
 
   ASSERT(recvcount != NULL);
-  ASSERT(recvindex != NULL);
-
   ASSERT(local_recv_offset != NULL);
 
   gaspi_number_t snum = 0; 
   SUCCESS_OR_DIE(gaspi_segment_num(&snum));
   ASSERT(snum == 4);
 
+  int i;
+
+#ifdef USE_GASPI_PARALLEL_SCATTER
+
+  for (i = 0; i < ncommdomains; ++i)
+    {
+      gaspi_notification_id_t nid, id = i;
+      gaspi_notification_t value = 0;	  	  
+      int nrecv = get_recvcount_local(i);
+      if (nrecv > 0)
+	{
+	  int buffer_id = cd->recv_stage % 2;	  
+	  SUCCESS_OR_DIE(gaspi_notify_waitsome (2+buffer_id
+						, id
+						, 1
+						, &nid
+						, GASPI_BLOCK
+						));
+	  ASSERT(id == nid);
+	  int k = commpartner[i];
+
+	  /* copy the data from the recvbuffer into out data field */
+	  gaspi_pointer_t ptr;
+	  SUCCESS_OR_DIE(gaspi_segment_ptr(2+buffer_id, &ptr));		  
+	  double *rbuf = (double *) (ptr + local_recv_offset[k]);		  
+	  exchange_dbl_copy_out_local(rbuf
+				      , data
+				      , dim2
+				      , i
+				      );
+	}
+    }
+
+
+  if (this_is_the_last_thread())
+    {
+      for (i = 0; i < ncommdomains; ++i)
+	{
+	  gaspi_notification_id_t id = i;
+	  gaspi_notification_t value = 0;	  	  
+	  int buffer_id = cd->recv_stage % 2;	  
+
+	  /* .. and reset */
+	  SUCCESS_OR_DIE (gaspi_notify_reset (2+buffer_id
+					      , id
+					      , &value
+					      ));
+	  ASSERT(value != 0);
+	}
+
+      for(i = 0; i < ncommdomains; i++)
+	{
+	  cd->send_flag[i]++;
+	  cd->recv_flag[i]++;
+	}
+
+      // inc stage counter
+      cd->send_stage++;
+      cd->recv_stage++;
+
+    }
+
+
+
+#else
 
   if (this_is_the_first_thread())
     {
-      int i;
       /* buffer_id */
       int buffer_id = cd->recv_stage % 2;
       for (i = 0; i < ncommdomains; ++i)
@@ -286,31 +330,42 @@ void exchange_dbl_gaspi_async(comm_data *cd
 						, &id
 						, GASPI_BLOCK
 						));
-	  /* .. and reset */
-	  SUCCESS_OR_DIE (gaspi_notify_reset (2+buffer_id
-					      , id
-					      , &value
-					      ));
-	  ASSERT(value != 0);
+
+          SUCCESS_OR_DIE (gaspi_notify_reset (2+buffer_id
+                                              , id
+                                              , &value
+                                              ));
+          ASSERT(value != 0);
+
 	  int k = commpartner[id];	  
-	  ASSERT(recvcount[k] > 0);	  
+	  ASSERT(recvcount[k] > 0);	 
+
 	  /* copy the data from the recvbuffer into out data field */
-	  exchange_dbl_gaspi_copy_out( recvcount[k]
-				      , recvindex[k]
-				      , local_recv_offset[k]
-				      , data
-				      , dim2
-				      , buffer_id
-				      );
+	  gaspi_pointer_t ptr;
+	  SUCCESS_OR_DIE(gaspi_segment_ptr(2+buffer_id, &ptr));		  
+	  double *rbuf = (double *) (ptr + local_recv_offset[k]);		  
+	  exchange_dbl_copy_out(cd
+				, rbuf
+				, data
+				, dim2
+				, id
+				);
 	}
     }
   
-  // inc stage counter
   if (this_is_the_last_thread())
     {
+      for(i = 0; i < ncommdomains; i++)
+	{
+	  cd->send_flag[i]++;
+	  cd->recv_flag[i]++;
+	}
+      // inc stage counter
       cd->send_stage++;
       cd->recv_stage++;
     }
+
+#endif
 
 }
 
