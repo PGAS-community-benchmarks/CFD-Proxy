@@ -1,8 +1,8 @@
                             CFD Proxy
-                          Version 1.0.0
+                          Version 1.0.1
                              README
 
-                          October 2014
+                          Deecember 2014
 
 ==============================================================================
 Table of contents
@@ -79,6 +79,9 @@ in ./src directory.
 2) Adapt the Makefile in src. (NETCFD_DIR, MPI_DIR, GPI2_DIR, CFLAGS, 
    (USE_MPI_MULTI_THREADED, USE_GASPI, USE_NTHREADS)). The MPI lib will 
    require support for either MPI_THREAD_MULTIPLE or MPI_THREAD_SERIALIZED.
+   There are quite a few possible combinations of the provided various 
+   settings. Pick the one which works best for your architecture, report 
+   back and/or provide your own implementation. 
  
 3) Unpack the dualgrid meshes in f6. Github restrictions currently only allows 
    for rather moderate mesh size, so we are in the process of looking for a 
@@ -116,9 +119,9 @@ faces which reside entirely within the thread domain (and which are allowed
 to update both attached data points, ftype 1), faces which only write to the
 left data point (ftype 2) and faces which only write to the right data point 
 (ftype 3). In order to maximize scalar efficiency we have split the thread 
-domains  into sub domains (colors) which fit in the L2 cache.  
-We perform strip mining both with respect to initialized and finalized 
-points (for details see gradients.c).
+domains  into sub domains (colors) which fit in the L2 cache. We perform strip
+mining both with respect to initialized and finalized  points (for details 
+see gradients.c).
 
 Overlapping communication and computation
 -----------------------------------------
@@ -133,6 +136,10 @@ We note that while this method  allows for a maximal overlap of communication
 and computation, it either  requires a full MPI_THREAD_MULTIPLE or a 
 MPI_THREAD_SERIALIZED MPI version.  For the latter version we have 
 encapsulated the actual MPI_Isend and MPI_Put in an OpenMP critical section.
+We have enhanced the CFD proxy with a multithreaded gather/scatter operation
+from/into the MPI/GASPI buffers. We note that for high scalablity on Xeon Phi 
+(and probably most other many-core architectures) this optimization appears 
+to be mandatory.
 
 ==============================================================================
 8. Results
