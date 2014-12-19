@@ -2,7 +2,7 @@
                           Version 1.0.1
                              README
 
-                          Deecember 2014
+                          December 2014
 
 ==============================================================================
 Table of contents
@@ -37,7 +37,7 @@ kernel is representative for a much broader class of applications which
 make use of unstructured meshes.
 
 This benchmark aims at strong scaling scenarios with ~ 100 mesh points per 
-(x86 Ivy Bridge) core. For more details please see the documentation. 
+(x86 Ivy Bridge) core or less. For more details please see the documentation. 
 For even more details please have a look at the code.
 
 ==============================================================================
@@ -118,10 +118,14 @@ thread actually owns.  The CFD proxy hence implements 3 different face types:
 faces which reside entirely within the thread domain (and which are allowed 
 to update both attached data points, ftype 1), faces which only write to the
 left data point (ftype 2) and faces which only write to the right data point 
-(ftype 3). In order to maximize scalar efficiency we have split the thread 
-domains  into sub domains (colors) which fit in the L2 cache. We perform strip
-mining both with respect to initialized and finalized  points (for details 
-see gradients.c).
+(ftype 3). 
+In order to maximize scalar efficiency we have split the thread domains into 
+sub domains (colors) which fit in the L2 cache.  The threads then  iterate 
+over these colors until the respective thread domain has been  completed. 
+We perform strip mining both with respect to initialized and finalized 
+points. The colors in this implementation hence require a substantial 
+amount of meta data about e.g about which data points are visited for the
+first time (for each color), or which points are visited for the last time.  
 
 Overlapping communication and computation
 -----------------------------------------
@@ -132,14 +136,19 @@ The mesh faces are reordered such that halo points are updated first during
 the gradient reconstruction. The thread which completes the final update 
 (for a specific communication  partner) on these halo points then triggers 
 the communication – either via  MPI_Isend, MPI_Put or gaspi_write_notify. 
-We note that while this method  allows for a maximal overlap of communication 
-and computation, it either  requires a full MPI_THREAD_MULTIPLE or a 
+In order to achieve this, the code additionally keeps track of the status 
+of the inner halo (ghost cell) points for every color and maintains a list 
+which halo points (per color) have to be send to which neighboring rank. 
+We note that while this method allows for a maximal overlap of communication 
+and computation, it either requires a full MPI_THREAD_MULTIPLE or a 
 MPI_THREAD_SERIALIZED MPI version.  For the latter version we have 
 encapsulated the actual MPI_Isend and MPI_Put in an OpenMP critical section.
 We have enhanced the CFD proxy with a multithreaded gather/scatter operation
-from/into the MPI/GASPI buffers. We note that for high scalablity on Xeon Phi 
-(and probably most other many-core architectures) this optimization appears 
-to be mandatory.
+from/into the MPI/GASPI buffers. For this all colors use additional meta 
+data with respect to required points (per color) in their outer halo. 
+We note that for high scalablity on Xeon Phi  (and probably most other 
+many-core architectures) this kind of optimization (multihreaded pack/unpack)
+appears to be mandatory.
 
 ==============================================================================
 8. Results
