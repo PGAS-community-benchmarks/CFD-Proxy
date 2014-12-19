@@ -28,7 +28,7 @@
 #include "exchange_data_gaspi.h"
 #endif
 
-#define N_MEDIAN 10
+#define N_MEDIAN 25
 #define N_SOLVER 10
 
 void test_solver(comm_data *cd, solver_data *sd)

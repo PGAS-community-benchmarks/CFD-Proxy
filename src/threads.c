@@ -165,7 +165,7 @@ void initiate_thread_comm_mpi(RangeList *color
 			     , int dim2
 			     )
 {
-  int i,j;
+  int i;
   for(i = 0; i < color->nsendcount; i++)
     {
       int i1 = color->sendpartner[i];
@@ -318,7 +318,7 @@ void initiate_thread_comm_gaspi(RangeList *color
 			       , int dim2
 			       )
 {
-  int i, j;
+  int i;
   for(i = 0; i < color->nsendcount; i++)
     {
       int i1 = color->sendpartner[i];

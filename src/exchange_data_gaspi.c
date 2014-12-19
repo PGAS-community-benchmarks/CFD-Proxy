@@ -48,6 +48,11 @@ void init_gaspi_segments(comm_data *cd
       ssz +=  cd->sendcount[k] * max_elem_sz * szd;
       rsz +=  cd->recvcount[k] * max_elem_sz * szd;
     }  
+
+#ifdef DEBUG
+  printf("GASPI segment size rsz: %lu ssz: %lu\n",rsz,ssz);
+  fflush(stdout);
+#endif
   
   for(j = 0; j < 2; j++)
     {      
@@ -68,6 +73,12 @@ void init_gaspi_segments(comm_data *cd
 					  ));
     }
 
+
+#ifdef DEBUG
+  printf("GASPI segment creation complete.\n");
+  fflush(stdout);
+#endif
+
 }
 
 
@@ -80,18 +91,19 @@ void exchange_dbl_gaspi_write(comm_data *cd
 {
   int *commpartner  = cd->commpartner;
   int *sendcount    = cd->sendcount;
-  int **sendindex   = cd->sendindex;
 
   gaspi_queue_id_t queue_id = 0;
   gaspi_offset_t *local_send_offset     = cd->local_send_offset;
   gaspi_offset_t *remote_recv_offset    = cd->remote_recv_offset;
   gaspi_notification_id_t *notification = cd->notification;
 
-  int j, count;
+  int count;
   size_t szd = sizeof(double);
 
   int k = commpartner[i];
   count = sendcount[k];
+
+  ASSERT(data != NULL);
  
   if(count > 0)
     {
@@ -133,7 +145,6 @@ void exchange_dbl_gaspi_bulk_sync(comm_data *cd
   gaspi_offset_t *local_send_offset     = cd->local_send_offset;
 
   int i;
-  int j, count;
 
   ASSERT(dim2 > 0);
   ASSERT(ncommdomains != 0);
@@ -256,7 +267,6 @@ void exchange_dbl_gaspi_async(comm_data *cd
   for (i = 0; i < ncommdomains; ++i)
     {
       gaspi_notification_id_t nid, id = i;
-      gaspi_notification_t value = 0;	  	  
       int nrecv = get_recvcount_local(i);
       if (nrecv > 0)
 	{

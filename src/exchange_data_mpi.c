@@ -78,14 +78,14 @@ void exchange_dbl_mpi_send(comm_data *cd
   int ncommdomains  = cd->ncommdomains;
   int *commpartner  = cd->commpartner;
   int *sendcount    = cd->sendcount;
-  int **sendindex   = cd->sendindex;
 
-  int j;
   size_t size, szd = sizeof(double);
 
   /* send */
   int k = commpartner[i];
   int count = sendcount[k];
+
+  ASSERT(data != NULL);
  
   if(count > 0)
     {
@@ -154,7 +154,7 @@ void exchange_dbl_mpi_bulk_sync(comm_data *cd
   int **sendindex   = cd->sendindex;
   int **recvindex   = cd->recvindex;
 
-  int i,j;
+  int i;
 
   ASSERT(dim2 > 0);
   ASSERT(ncommdomains != 0);
@@ -225,7 +225,7 @@ void exchange_dbl_mpi_early_recv(comm_data *cd
   int **sendindex   = cd->sendindex;
   int **recvindex   = cd->recvindex;
 
-  int i,j;
+  int i;
 
   ASSERT(dim2 > 0);
   ASSERT(ncommdomains != 0);
@@ -294,7 +294,6 @@ void exchange_dbl_mpi_async(comm_data *cd
   int ncommdomains  = cd->ncommdomains;
   int nreq          = cd->nreq;
 
-  int *commpartner  = cd->commpartner;
   int *sendcount    = cd->sendcount;
   int *recvcount    = cd->recvcount;
   int **sendindex   = cd->sendindex;
