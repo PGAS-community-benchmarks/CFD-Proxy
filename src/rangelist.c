@@ -1255,6 +1255,8 @@ static void gather_recvcount(comm_data *cd
     check_free(nrecvcount);
   }
 
+  check_free(idx);
+  check_free(own);
 
 
   /* flag for testing color recvindex */
@@ -1288,10 +1290,9 @@ static void gather_recvcount(comm_data *cd
 
   /* assemble partial recvcounts per color, per target */
 #pragma omp parallel default (none) shared(cd, sd			\
-	   , flag, own, stdout, stderr)
+	   , flag, stdout, stderr)
   {
     RangeList *color;
-    int  *nrecvcount = check_malloc(cd->ncommdomains * sizeof(int));
 
     for (color = get_color(); color != NULL
 	   ; color = get_next_color(color)) 
@@ -1315,11 +1316,6 @@ static void gather_recvcount(comm_data *cd
     {
       ASSERT(flag[i] == 0);
     }
-
-
-  check_free(idx);
-  check_free(own);
-
 
   /* testing for multiple recvs per pnt  */
   for(i = 0; i < cd->ncommdomains; i++)
