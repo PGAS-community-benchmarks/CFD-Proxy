@@ -459,7 +459,6 @@ void compute_communication_tables(comm_data *cd)
 }
 
 
-
 void free_communication_ressources(void)
 {	
 

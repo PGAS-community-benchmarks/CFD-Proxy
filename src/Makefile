@@ -2,10 +2,15 @@
 #NETCDF_DIR = $(HOME)/netcdf-4.2.1.1.mic
 #MPI_DIR=/export/opt/intel2015/impi/5.0.1.035/mic
 #CC = $(MPI_DIR)/bin/mpiicc
-GPI2_DIR = $(HOME)/GPI2-1.1.1_intel-5.0.1.035
+#GPI2_DIR = $(HOME)/GPI2-1.1.1_intel-5.0.1.035
+#NETCDF_DIR = $(HOME)/netcdf-4.2.1.1
+#MPI_DIR=/export/opt/intel2015/impi/5.0.1.035
+#CC = $(MPI_DIR)/bin64/mpicc
+
+GPI2_DIR = $(HOME)/GPI2-1.1.0_openmpi-1.6.5
 NETCDF_DIR = $(HOME)/netcdf-4.2.1.1
-MPI_DIR=/export/opt/intel2015/impi/5.0.1.035
-CC = $(MPI_DIR)/bin64/mpiicc
+MPI_DIR =  $(HOME)/openmpi-1.6.5-thread-multiple
+CC = $(MPI_DIR)/bin/mpicc
 
 BIN += hybrid.f6.exe
 
@@ -13,10 +18,10 @@ CFLAGS += -Wall
 CFLAGS += -Wextra
 CFLAGS += -Wshadow
 #CFLAGS += -O2 -g -mmic
-CFLAGS += -O2 -g -debug
+CFLAGS += -O2 -g 
 CFLAGS += -std=c99
-CFLAGS += -openmp
-#CFLAGS += -DDEBUG 
+CFLAGS += -fopenmp
+CFLAGS += -DDEBUG 
 CFLAGS += -DGCC_EXTENSION
 CFLAGS += -DUSE_NTHREADS=12
 CFLAGS += -DUSE_MPI_MULTI_THREADED
@@ -36,7 +41,7 @@ INCLUDE_DIR += $(GPI2_DIR)/include
 INCLUDE_DIR += ..
 
 LIBRARY_DIR += $(NETCDF_DIR)/lib
-LIBRARY_DIR += $(MPI_DIR)/lib
+LIBRARY_DIR += $(MPI_DIR)/lib/intel64
 #LIBRARY_DIR += $(GPI2_DIR)/lib64/mic
 LIBRARY_DIR += $(GPI2_DIR)/lib64
 
@@ -62,8 +67,8 @@ OBJ += util
 LIB += GPI2
 LIB += ibverbs
 #LIB += mpich
-LIB += mpi_mt
-#LIB += mpi
+#LIB += mpi_mt
+LIB += mpi
 LIB += netcdf
 LIB += m
 

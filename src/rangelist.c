@@ -454,8 +454,12 @@ void init_thread_rangelist(comm_data *cd
 			   , int *htype
 			   )
 {
+  ASSERT(cd != NULL);
+  ASSERT(sd != NULL);
+
   int face;
   int nfaces = 0;
+
   for (face = 0; face < sd->nfaces; face++)
     {
       int p0 = sd->fpoint[face][0];
@@ -807,7 +811,6 @@ void eval_thread_rangelist(solver_data *sd)
   int *tmp1 = check_malloc(sd->nallpoints * sizeof(int));
   int *tmp2 = check_malloc(sd->nallpoints * sizeof(int));
 
-
   /* validate all_points_of_color */
   for(i0 = 0; i0 < sd->nallpoints; i0++)   
     {
@@ -816,10 +819,7 @@ void eval_thread_rangelist(solver_data *sd)
 #pragma omp parallel default (none) shared(sd\
             , tmp1, stdout, stderr)
     {
-      int const tid = omp_get_thread_num();
-      int    (*fpoint)[2] = solver_local.fpoint;
       RangeList *color;
-
       for (color = get_color(); color != NULL
 	     ; color = get_next_color(color)) 
 	{      
@@ -849,11 +849,9 @@ void eval_thread_rangelist(solver_data *sd)
 #pragma omp parallel default (none) shared(sd\
             , tmp1, tmp2, stdout, stderr)
     {
-
+      RangeList *color;
       int const tid = omp_get_thread_num();
       int    (*fpoint)[2] = solver_local.fpoint;
-      RangeList *color;
-
       for (color = get_color(); color != NULL
 	     ; color = get_next_color(color)) 
 	{      
@@ -924,9 +922,6 @@ void eval_thread_rangelist(solver_data *sd)
 #pragma omp parallel default (none) shared(sd\
             , tmp1, stdout, stderr)
     {
-
-      int const tid = omp_get_thread_num();
-      int    (*fpoint)[2] = solver_local.fpoint;
       RangeList *color;
       for (color = get_color(); color != NULL
 	     ; color = get_next_color(color)) 
@@ -1121,7 +1116,6 @@ static void gather_sendcount(comm_data *cd
 	  int i2, i4;	
 	  for(i2 = 0; i2 < color->nsendcount; i2++) 
 	    {
-	      int i1 = color->sendpartner[i2];
 	      for(i4 = 0; i4 < color->sendcount[i2]; i4++) 
 		{
 		  int pnt = color->sendindex[i2][i4];
@@ -1345,7 +1339,6 @@ static void gather_recvcount(comm_data *cd
 	int i2, i4;	
 	for(i2 = 0; i2 < color->nrecvcount; i2++) 
 	  {
-	    int i1 = color->recvpartner[i2];
 	    for(i4 = 0; i4 < color->recvcount[i2]; i4++) 
 	      {
 		int pnt = color->recvindex[i2][i4];

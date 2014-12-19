@@ -97,16 +97,17 @@ void exchange_dbl_mpidma_write(comm_data *cd
 {
   int *commpartner  = cd->commpartner;
   int *sendcount    = cd->sendcount;
-  int **sendindex   = cd->sendindex;
 
   gaspi_offset_t *remote_recv_offset    = cd->remote_recv_offset;
   gaspi_offset_t *local_send_offset     = cd->local_send_offset;
 
-  int j, count;
+  int count;
   size_t szd = sizeof(double);
 
   int k = commpartner[i];
   count = sendcount[k];
+
+  ASSERT(data != NULL)
  
   if(count > 0)
     {
