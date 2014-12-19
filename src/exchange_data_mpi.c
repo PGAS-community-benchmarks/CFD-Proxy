@@ -31,34 +31,15 @@ void init_mpi_requests(comm_data *cd, int dim2)
   size_t szd = sizeof(double);
 
   ASSERT(cd->nreq == 0);
+  ASSERT(cd->ncommdomains > 0);
   
   size_t szr = 2 * cd->ncommdomains * sizeof(MPI_Request);
   size_t szs = 2 * cd->ncommdomains * sizeof(MPI_Status);   
   cd->req   = (MPI_Request *)check_malloc(szr);
   cd->stat  = (MPI_Status  *)check_malloc(szs);
-
   cd->nreq  = cd->ncommdomains;
 
-  cd->sendbuf = check_malloc(cd->ncommdomains);
-  cd->recvbuf = check_malloc(cd->ncommdomains);
-  for(i = 0; i < cd->ncommdomains; i++)
-    {
-      cd->sendbuf[i] = NULL;
-      cd->recvbuf[i] = NULL;
-    }
-  for(i = 0; i < cd->ncommdomains; i++)
-    {
-      int k = cd->commpartner[i];
-      if (cd->sendcount[k] > 0)
-	{
-	  cd->sendbuf[i]=check_malloc(dim2 * cd->sendcount[k] * max_elem_sz * szd);
-	}
-      if (cd->recvcount[k] > 0)
-	{
-	  cd->recvbuf[i]=check_malloc(dim2 * cd->recvcount[k] * max_elem_sz * szd);
-	}
-    }  
-
+  /* status flag */
   cd->send_flag = check_malloc(cd->ncommdomains*sizeof(int));
   cd->recv_flag = check_malloc(cd->ncommdomains*sizeof(int));
   for(i = 0; i < cd->ncommdomains; i++)
@@ -66,6 +47,40 @@ void init_mpi_requests(comm_data *cd, int dim2)
       cd->send_flag[i] = 0;
       cd->recv_flag[i] = 0;
     }
+
+  /* sendbuffer */
+  cd->sendbuf = check_malloc(cd->ncommdomains * sizeof(double*));
+  for(i = 0; i < cd->ncommdomains; i++)
+    {
+      cd->sendbuf[i] = NULL;
+    }
+  for(i = 0; i < cd->ncommdomains; i++)
+    {
+      int k = cd->commpartner[i];
+      if (cd->sendcount[k] > 0)
+	{
+	  cd->sendbuf[i] = 
+	    check_malloc(dim2 * cd->sendcount[k] * max_elem_sz * szd);
+	}
+    }  
+
+  /* recvbuffer */
+  cd->recvbuf = check_malloc(cd->ncommdomains * sizeof(double*));
+  for(i = 0; i < cd->ncommdomains; i++)
+    {
+      cd->recvbuf[i] = NULL;
+    }
+
+  for(i = 0; i < cd->ncommdomains; i++)
+    {
+      int k = cd->commpartner[i];
+      if (cd->recvcount[k] > 0)
+	{
+	  cd->recvbuf[i] = 
+	    check_malloc(dim2 * cd->recvcount[k] * max_elem_sz * szd);
+	}
+    }  
+
 
 }
 
