@@ -48,11 +48,13 @@ void init_mpi_requests(comm_data *cd, int dim2)
       cd->recv_flag[i] = 0;
     }
 
-  /* sendbuffer */
+  /* sendbuffer, recvbuffer  */
   cd->sendbuf = check_malloc(cd->ncommdomains * sizeof(double*));
+  cd->recvbuf = check_malloc(cd->ncommdomains * sizeof(double*));
   for(i = 0; i < cd->ncommdomains; i++)
     {
       cd->sendbuf[i] = NULL;
+      cd->recvbuf[i] = NULL;
     }
   for(i = 0; i < cd->ncommdomains; i++)
     {
@@ -62,25 +64,12 @@ void init_mpi_requests(comm_data *cd, int dim2)
 	  cd->sendbuf[i] = 
 	    check_malloc(dim2 * cd->sendcount[k] * max_elem_sz * szd);
 	}
-    }  
-
-  /* recvbuffer */
-  cd->recvbuf = check_malloc(cd->ncommdomains * sizeof(double*));
-  for(i = 0; i < cd->ncommdomains; i++)
-    {
-      cd->recvbuf[i] = NULL;
-    }
-
-  for(i = 0; i < cd->ncommdomains; i++)
-    {
-      int k = cd->commpartner[i];
       if (cd->recvcount[k] > 0)
 	{
 	  cd->recvbuf[i] = 
 	    check_malloc(dim2 * cd->recvcount[k] * max_elem_sz * szd);
 	}
     }  
-
 
 }
 
