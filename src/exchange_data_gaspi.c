@@ -133,6 +133,7 @@ void exchange_dbl_gaspi_write(comm_data *cd
 void exchange_dbl_gaspi_bulk_sync(comm_data *cd
 				  , double *data
 				  , int dim2
+				  , int final
 				  )
 {
   int ncommdomains  = cd->ncommdomains;
@@ -235,12 +236,16 @@ void exchange_dbl_gaspi_bulk_sync(comm_data *cd
 
     }
 
+/* wait for recv/unpack */
+#pragma omp barrier
+
 }
 
 
 void exchange_dbl_gaspi_async(comm_data *cd
 			      , double *data
 			      , int dim2
+			      , int final
 			      )
 {
 
@@ -321,7 +326,8 @@ void exchange_dbl_gaspi_async(comm_data *cd
 
     }
 
-
+/* no barrier -- in parallel scatter all threads unpack 
+   the specifically required parts of recv */   
 
 #else
 
@@ -374,6 +380,9 @@ void exchange_dbl_gaspi_async(comm_data *cd
       cd->send_stage++;
       cd->recv_stage++;
     }
+
+/* wait for recv/unpack */
+#pragma omp barrier
 
 #endif
 

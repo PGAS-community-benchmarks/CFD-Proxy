@@ -50,6 +50,18 @@ static void init_grad(double (*grad)[NGRAD][3], int nallpoints)
     }
 }
 
+static void init_flux(double (*psd_flux)[NFLUX], int nallpoints)
+{
+  int i,j;
+  for (i = 0; i< nallpoints; ++i)
+    {
+      for (j = 0; j < NFLUX; ++j)
+        {         
+          psd_flux[i][j] = 1.0;
+        }
+    }
+}
+
 void init_solver_data(solver_data *sd, int NITER)
 {
   ASSERT(sd != NULL);
@@ -58,6 +70,7 @@ void init_solver_data(solver_data *sd, int NITER)
   /* initialize var/grad */
   init_var(sd->var, sd->nallpoints);
   init_grad(sd->grad, sd->nallpoints);
+  init_flux(sd->psd_flux, sd->nallpoints);
 
   /* set num iterations */
   sd->niter = NITER;
@@ -100,6 +113,7 @@ void read_solver_data(int ncid, solver_data *sd)
   sd->pvolume = check_malloc(sd->nallpoints * sizeof(double));
   sd->var = check_malloc(sd->nallpoints * NGRAD * sizeof(double));
   sd->grad = check_malloc(sd->nallpoints * NGRAD * 3 * sizeof(double));
+  sd->psd_flux = check_malloc(sd->nallpoints * NFLUX * sizeof(double));
   sd->fcolor = check_malloc(sd->ncolors * sizeof(RangeList));
 
   /* read data */

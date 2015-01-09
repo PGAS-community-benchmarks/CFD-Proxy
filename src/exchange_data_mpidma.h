@@ -6,17 +6,20 @@
 void exchange_dbl_mpifence_bulk_sync(comm_data *cd
 				     , double *data
 				     , int dim2
+				     , int final
 				     );
 
 void exchange_dbl_mpifence_async(comm_data *cd
 				 , double *data
 				 , int dim2
+				 , int final
 				 );
 
 void exchange_dbl_mpipscw_bulk_sync(comm_data *cd
-				     , double *data
-				     , int dim2
-				     );
+				    , double *data
+				    , int dim2
+				    , int final
+				    );
 
 void exchange_dbl_mpipscw_async(comm_data *cd
 				, double *data

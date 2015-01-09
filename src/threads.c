@@ -31,15 +31,17 @@
 #include "error_handling.h"
 #include "util.h"
 #include "rangelist.h"
+#include "thread_comm.h"
+#include "eval.h"
 #include "threads.h"
 
 
+/* global comm var for threadprivate comm */
+static volatile counter_t *send_counter_global = NULL; 
 
-
-/* comm var for threadprivate comm */
-static volatile counter_t *send_increment = NULL; 
-static int *send_increment_local = NULL;
-#pragma omp threadprivate(send_increment_local)
+/* private comm var for threadprivate comm */
+static int *send_counter_local = NULL;
+#pragma omp threadprivate(send_counter_local)
 static int *sendcount_local = NULL;
 #pragma omp threadprivate(sendcount_local)
 static int **sendindex_local = NULL;
@@ -54,19 +56,19 @@ static int **recvindex_local = NULL;
 static int **recvoffset_local = NULL;
 #pragma omp threadprivate(recvoffset_local)
 
-/* getter/setter functions for global/local increments */
-int get_send_increment(int i)
+/* getter/setter functions for global/local counters */
+int get_send_counter_global(int i)
 {
-  return send_increment[i].global;
+  return send_counter_global[i].global;
 }
-int set_send_increment(int i, int val)
+int inc_send_counter_global(int i, int val)
 {
-  return my_add_and_fetch(&send_increment[i].global, val);
+  return my_add_and_fetch(&send_counter_global[i].global, val);
 }
-int set_send_increment_local(int i, int val)
+int inc_send_counter_local(int i, int val)
 {
-  send_increment_local[i] += val;
-  return send_increment_local[i];
+  send_counter_local[i] += val;
+  return send_counter_local[i];
 }
 
 /* getter/setter functions for thread local send/recv count */
@@ -171,8 +173,8 @@ void initiate_thread_comm_mpi(RangeList *color
       int i1 = color->sendpartner[i];
       if (color->sendcount[i] > 0 && sendcount_local[i1] > 0)
 	{
-	  send_increment_local[i1] += color->sendcount[i];
-	  if(send_increment_local[i1] % sendcount_local[i1] == 0)
+	  send_counter_local[i1] += color->sendcount[i];
+	  if(send_counter_local[i1] % sendcount_local[i1] == 0)
 	    {
 	      double *sbuf = cd->sendbuf[i1];
 #ifdef USE_MPI_PARALLEL_GATHER
@@ -181,7 +183,7 @@ void initiate_thread_comm_mpi(RangeList *color
 					 , dim2
 					 , i1);
 #endif
-	      int inc_global = set_send_increment(i1, sendcount_local[i1]);
+	      int inc_global = inc_send_counter_global(i1, sendcount_local[i1]);
 	      int k = cd->commpartner[i1];
 	      if (inc_global % cd->sendcount[k] == 0)
 		{
@@ -222,8 +224,8 @@ void initiate_thread_comm_mpifence(RangeList *color
       int i1 = color->sendpartner[i];
       if (color->sendcount[i] > 0 && sendcount_local[i1] > 0)
 	{
-	  send_increment_local[i1] += color->sendcount[i];
-	  if(send_increment_local[i1] % sendcount_local[i1] == 0)
+	  send_counter_local[i1] += color->sendcount[i];
+	  if(send_counter_local[i1] % sendcount_local[i1] == 0)
 	    {
 	      void *sndbuf = get_sndbuf();
 	      int k = cd->commpartner[i1];
@@ -234,7 +236,7 @@ void initiate_thread_comm_mpifence(RangeList *color
 					 , dim2
 					 , i1);
 #endif
-	      int inc_global = set_send_increment(i1, sendcount_local[i1]);
+	      int inc_global = inc_send_counter_global(i1, sendcount_local[i1]);
 	      if (inc_global % cd->sendcount[k] == 0)
 		{
 #ifndef USE_MPI_PARALLEL_GATHER
@@ -271,8 +273,8 @@ void initiate_thread_comm_mpipscw(RangeList *color
       int i1 = color->sendpartner[i];
       if (color->sendcount[i] > 0 && sendcount_local[i1] > 0)
 	{
-	  send_increment_local[i1] += color->sendcount[i];
-	  if(send_increment_local[i1] % sendcount_local[i1] == 0)
+	  send_counter_local[i1] += color->sendcount[i];
+	  if(send_counter_local[i1] % sendcount_local[i1] == 0)
 	    {
 	      void *sndbuf = get_sndbuf();
 	      int k = cd->commpartner[i1];
@@ -283,7 +285,7 @@ void initiate_thread_comm_mpipscw(RangeList *color
 					 , dim2
 					 , i1);
 #endif
-	      int inc_global = set_send_increment(i1, sendcount_local[i1]);
+	      int inc_global = inc_send_counter_global(i1, sendcount_local[i1]);
 	      if (inc_global % cd->sendcount[k] == 0)
 		{
 #ifndef USE_MPI_PARALLEL_GATHER
@@ -325,8 +327,8 @@ void initiate_thread_comm_gaspi(RangeList *color
       if (color->sendcount[i] > 0 && sendcount_local[i1] > 0)
 	{
 	  int buffer_id = cd->send_stage % 2;
-	  send_increment_local[i1] += color->sendcount[i];
-	  if(send_increment_local[i1] % sendcount_local[i1] == 0)
+	  send_counter_local[i1] += color->sendcount[i];
+	  if(send_counter_local[i1] % sendcount_local[i1] == 0)
 	    {
 	      gaspi_pointer_t ptr;
 	      SUCCESS_OR_DIE(gaspi_segment_ptr(buffer_id, &ptr));
@@ -339,7 +341,7 @@ void initiate_thread_comm_gaspi(RangeList *color
 					 , i1
 					 );
 #endif
-	      int inc_global = set_send_increment(i1, sendcount_local[i1]);
+	      int inc_global = inc_send_counter_global(i1, sendcount_local[i1]);
 	      if (inc_global % cd->sendcount[k] == 0)
 		{
 #ifndef USE_GASPI_PARALLEL_GATHER
@@ -364,25 +366,25 @@ void initiate_thread_comm_gaspi(RangeList *color
 #endif
 
 
-static void allocate_thread_private_comm_data(comm_data *cd)
+static void allocate_comm_data(comm_data *cd)
 {
   int j ;
 
-  /* global increments for send/recv counter */
-  send_increment = check_malloc(cd->ncommdomains * sizeof(counter_t));
+  /* global counters for send/recv counter */
+  send_counter_global = check_malloc(cd->ncommdomains * sizeof(counter_t));
   for(j = 0; j < cd->ncommdomains; j++)
     {
-      send_increment[j].global = 0;
+      send_counter_global[j].global = 0;
     }
 
-  /* thread private increments for send/recv counter */
+  /* thread private counters for send/recv counter */
 #pragma omp parallel default (none) shared(cd)
   {
     int j1;
-    send_increment_local = check_malloc(cd->ncommdomains * sizeof(int));
+    send_counter_local = check_malloc(cd->ncommdomains * sizeof(int));
     for(j1 = 0; j1 < cd->ncommdomains; j1++)
       { 
-        send_increment_local[j1] = 0;
+        send_counter_local[j1] = 0;
       }
   }
 
@@ -505,7 +507,6 @@ static void allocate_thread_private_comm_data(comm_data *cd)
 
 
 
-
 void init_threads(comm_data *cd
 		  , solver_data *sd
 		  , int NTHREADS
@@ -514,8 +515,14 @@ void init_threads(comm_data *cd
   int *pid = check_malloc(sd->nallpoints * sizeof(int));
   int *htype = check_malloc(sd->nallpoints * sizeof(int));
 
-  /* meta data for threadprivate rangelist, reorder face data */
-  init_thread_meta_data(pid, htype, cd, sd, NTHREADS);
+  /* global comp stage counter */
+  init_comp_stage_global(NTHREADS);
+
+  /* set thread id, color id */
+  init_meta_data(pid, NTHREADS, sd);
+
+  /* init halo type */
+  init_halo_type(htype, cd, sd);
 
   /* free old rangelist */
   check_free(sd->fcolor->all_points_of_color);
@@ -531,9 +538,19 @@ void init_threads(comm_data *cd
   /* sanity check */
   eval_thread_rangelist(sd);
 
+  /* assign thread neighbours*/
+#pragma omp parallel default (none) shared(pid, cd, sd, stderr)
+  {
+    int const tid = omp_get_thread_num();
+    init_thread_neighbours(cd, sd, tid, pid);
+  }
+
+
   /* init thread communication */
   init_thread_comm(cd, sd);
-  allocate_thread_private_comm_data(cd);
+
+  /* thread private comm data allocate */
+  allocate_comm_data(cd);
 
   /* sanity check */
   eval_thread_comm(cd);

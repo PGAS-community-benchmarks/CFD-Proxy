@@ -147,6 +147,7 @@ void exchange_dbl_mpi_post_recv(comm_data *cd
 void exchange_dbl_mpi_bulk_sync(comm_data *cd
 				, double *data
 				, int dim2
+				, int final
 				)
 {
   int ncommdomains  = cd->ncommdomains;
@@ -168,7 +169,6 @@ void exchange_dbl_mpi_bulk_sync(comm_data *cd
   ASSERT(recvcount != NULL);
   ASSERT(sendindex != NULL);
   ASSERT(recvindex != NULL);
-
 
   /* wait for completed computation before send */
   if (this_is_the_last_thread())
@@ -210,6 +210,8 @@ void exchange_dbl_mpi_bulk_sync(comm_data *cd
 
     }
 
+/* wait for recv/unpack */
+#pragma omp barrier
 
 }
 
@@ -239,7 +241,6 @@ void exchange_dbl_mpi_early_recv(comm_data *cd
   ASSERT(recvcount != NULL);
   ASSERT(sendindex != NULL);
   ASSERT(recvindex != NULL);
-
 
   /* wait for completed computation before send */
   if (this_is_the_last_thread())
@@ -285,6 +286,8 @@ void exchange_dbl_mpi_early_recv(comm_data *cd
 
     }
 
+/* wait for recv/unpack */
+#pragma omp barrier
 
 }
 
@@ -339,7 +342,6 @@ void exchange_dbl_mpi_async(comm_data *cd
 	} 
     }
 
-
 #ifdef USE_MPI_PARALLEL_SCATTER
   for (i = 0; i < ncommdomains; ++i)
     {
@@ -386,6 +388,14 @@ void exchange_dbl_mpi_async(comm_data *cd
 
     }
 
+#ifndef USE_MPI_PARALLEL_SCATTER
+/* wait for recv/unpack */
+#pragma omp barrier
+#else
+/* no barrier -- in parallel scatter all threads unpack 
+   the specifically required parts of recv */   
+#endif
+
 #else
 
   if (this_is_the_last_thread())
@@ -420,8 +430,8 @@ void exchange_dbl_mpi_async(comm_data *cd
 	}
     }
 
-
-
+/* wait for recv/unpack */
+#pragma omp barrier
 
 #endif
 

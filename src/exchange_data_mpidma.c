@@ -129,6 +129,7 @@ void exchange_dbl_mpidma_write(comm_data *cd
 void exchange_dbl_mpifence_bulk_sync(comm_data *cd
 				     , double *data
 				     , int dim2
+				     , int final
 				     )
 {
   /* wait for completed computation before send */
@@ -178,6 +179,9 @@ void exchange_dbl_mpifence_bulk_sync(comm_data *cd
     cd->recv_stage++;
   }
 
+/* wait for recv/unpack */
+#pragma omp barrier
+
 }
 
 
@@ -185,6 +189,7 @@ void exchange_dbl_mpifence_bulk_sync(comm_data *cd
 void exchange_dbl_mpifence_async(comm_data *cd
 				 , double *data
 				 , int dim2
+				 , int final
 				 )
 {
   if (this_is_the_last_thread())
@@ -224,11 +229,15 @@ void exchange_dbl_mpifence_async(comm_data *cd
     cd->recv_stage++;
   }
 
+/* wait for recv/unpack */
+#pragma omp barrier
+
 }
 
 void exchange_dbl_mpipscw_bulk_sync(comm_data *cd
 				    , double *data
 				    , int dim2
+				    , int final
 				    )
 {
   /* wait for completed computation before send */
@@ -281,6 +290,8 @@ void exchange_dbl_mpipscw_bulk_sync(comm_data *cd
     cd->recv_stage++;
   }
 
+/* wait for recv/unpack */
+#pragma omp barrier
 
 }
 
@@ -342,6 +353,9 @@ void exchange_dbl_mpipscw_async(comm_data *cd
       }
   }
 
+/* wait for recv/unpack */
+#pragma omp barrier
+
 #else
 
 
@@ -387,6 +401,9 @@ void exchange_dbl_mpipscw_async(comm_data *cd
 	mpidma_async_post_start();
       }
   }
+
+/* wait for recv/unpack */
+#pragma omp barrier
 
 #endif
 

@@ -21,6 +21,7 @@
 #include "util.h"
 
 #include "gradients.h"
+#include "flux.h"
 #include "rangelist.h"
 #include "exchange_data_mpi.h"
 #include "exchange_data_mpidma.h"
@@ -28,7 +29,7 @@
 #include "exchange_data_gaspi.h"
 #endif
 
-#define N_MEDIAN 25
+#define N_MEDIAN 10
 #define N_SOLVER 10
 
 void test_solver(comm_data *cd, solver_data *sd)
@@ -46,7 +47,9 @@ void test_solver(comm_data *cd, solver_data *sd)
 	int i;
 	for (i = 0; i < sd->niter; ++i)
 	  {
-	    compute_gradients_gg_comm_free(sd);
+	    int final = (i == sd->niter-1) ? 1 : 0;
+	    compute_gradients_gg_comm_free(cd, sd, final);
+            compute_psd_flux(sd);
 	  }
       }
       MPI_Barrier(MPI_COMM_WORLD);
@@ -61,7 +64,9 @@ void test_solver(comm_data *cd, solver_data *sd)
 	int i;
 	for (i = 0; i < sd->niter; ++i)
 	  {
-	    compute_gradients_gg_mpi_bulk_sync(cd, sd);
+	    int final = (i == sd->niter-1) ? 1 : 0;
+	    compute_gradients_gg_mpi_bulk_sync(cd, sd, final);
+            compute_psd_flux(sd);
 	  }
       }
       MPI_Barrier(MPI_COMM_WORLD);
@@ -80,6 +85,7 @@ void test_solver(comm_data *cd, solver_data *sd)
 	  {
 	    int final = (i == sd->niter-1) ? 1 : 0;
 	    compute_gradients_gg_mpi_early_recv(cd, sd, final);
+            compute_psd_flux(sd);
 	  }
       }
       MPI_Barrier(MPI_COMM_WORLD);
@@ -97,6 +103,7 @@ void test_solver(comm_data *cd, solver_data *sd)
 	  {
 	    int final = (i == sd->niter-1) ? 1 : 0;
 	    compute_gradients_gg_mpi_async(cd, sd, final);
+            compute_psd_flux(sd);
 	  }  
       }
       MPI_Barrier(MPI_COMM_WORLD);
@@ -112,7 +119,9 @@ void test_solver(comm_data *cd, solver_data *sd)
 	int i;
 	for (i = 0; i < sd->niter; ++i)
 	  {
-	    compute_gradients_gg_gaspi_bulk_sync(cd, sd);  
+	    int final = (i == sd->niter-1) ? 1 : 0;
+	    compute_gradients_gg_gaspi_bulk_sync(cd, sd, final);  
+            compute_psd_flux(sd);
 	  }
       }
       MPI_Barrier(MPI_COMM_WORLD);
@@ -127,7 +136,9 @@ void test_solver(comm_data *cd, solver_data *sd)
 	int i;
 	for (i = 0; i < sd->niter; ++i)
 	  {
-	    compute_gradients_gg_gaspi_async(cd, sd);
+	    int final = (i == sd->niter-1) ? 1 : 0;
+	    compute_gradients_gg_gaspi_async(cd, sd, final);
+            compute_psd_flux(sd);
 	  }  
       }
       MPI_Barrier(MPI_COMM_WORLD);
@@ -144,7 +155,9 @@ void test_solver(comm_data *cd, solver_data *sd)
 	int i;
 	for (i = 0; i < sd->niter; ++i)
 	  {
-	    compute_gradients_gg_mpifence_bulk_sync(cd, sd);
+	    int final = (i == sd->niter-1) ? 1 : 0;
+	    compute_gradients_gg_mpifence_bulk_sync(cd, sd, final);
+            compute_psd_flux(sd);
 	  }
       }
       MPI_Barrier(MPI_COMM_WORLD);
@@ -160,7 +173,9 @@ void test_solver(comm_data *cd, solver_data *sd)
 	int i;
 	for (i = 0; i < sd->niter; ++i)
 	  {
-	    compute_gradients_gg_mpifence_async(cd, sd);
+	    int final = (i == sd->niter-1) ? 1 : 0;
+	    compute_gradients_gg_mpifence_async(cd, sd, final);
+            compute_psd_flux(sd);
 	  }
       }
       MPI_Barrier(MPI_COMM_WORLD);
@@ -175,7 +190,9 @@ void test_solver(comm_data *cd, solver_data *sd)
 	int i;
 	for (i = 0; i < sd->niter; ++i)
 	  {
-	    compute_gradients_gg_mpipscw_bulk_sync(cd, sd);
+	    int final = (i == sd->niter-1) ? 1 : 0;
+	    compute_gradients_gg_mpipscw_bulk_sync(cd, sd, final);
+            compute_psd_flux(sd);
 	  }
       }
       MPI_Barrier(MPI_COMM_WORLD);
@@ -193,17 +210,13 @@ void test_solver(comm_data *cd, solver_data *sd)
 	  {
 	    int final = (i == sd->niter-1) ? 1 : 0;
 	    compute_gradients_gg_mpipscw_async(cd, sd, final);
+            compute_psd_flux(sd);
 	  }
       }
       MPI_Barrier(MPI_COMM_WORLD);
       time += now();
       median[9][k] = time;
 
-      if (cd->iProc == 0)
-	{
-	  printf(".");
-	  fflush(stdout);
-	}
     }
 
   if (cd->iProc == 0)
@@ -213,7 +226,6 @@ void test_solver(comm_data *cd, solver_data *sd)
 	  sort_median(&median[k][0], &median[k][N_MEDIAN-1]);
 	}
 
-      printf(" done\n");
       printf("                             comm_free: %10.6f\n",median[0][N_MEDIAN/2]);
       printf("            exchange_dbl_mpi_bulk_sync: %10.6f\n",median[1][N_MEDIAN/2]);
       printf("           exchange_dbl_mpi_early_recv: %10.6f\n",median[2][N_MEDIAN/2]);

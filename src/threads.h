@@ -9,10 +9,24 @@
 #include "error_handling.h"
 
 
-/* getter/setter functions for global increments */
-int get_send_increment(int i);
-int set_send_increment(int i, int val);
-int set_send_increment_local(int i, int val);
+
+typedef void (*send_fn)(RangeList *color
+			, comm_data *cd
+			, double *data
+			, int dim2
+			);
+
+
+typedef void (*exch_fn)(comm_data *cd
+			, double *data
+			, int dim2
+			, int final
+			);
+
+/* getter/setter functions for global counters */
+int get_send_counter_global(int i);
+int inc_send_counter_global(int i, int val);
+int inc_send_counter_local(int i, int val);
 
 /* getter functions for thread local send/recv counts  */
 int get_sendcount_local(int i);
