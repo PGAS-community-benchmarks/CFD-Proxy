@@ -91,7 +91,7 @@ int my_add_and_fetch(volatile int *ptr, int val)
 #else
   int t;
   //#pragma omp atomic capture 
-#pragma omp critical
+#pragma omp critical (addfetch)
   { 
     t = *ptr; 
     *ptr += val; 
@@ -111,7 +111,7 @@ int my_fetch_and_add(volatile int *ptr, int val)
 #else
   int t;
   //#pragma omp atomic capture 
-#pragma omp critical
+#pragma omp critical (fetchadd)
   { 
     t = *ptr; 
     *ptr += val; 
@@ -161,23 +161,23 @@ int this_is_the_last_thread(void)
 }
 
 
-void initiate_thread_comm_mpi(RangeList *color
-			     , comm_data *cd
-			     , double *data
-			     , int dim2
-			     )
+void initiate_thread_comm_mpi_pack(RangeList *color
+				   , comm_data *cd
+				   , double *data
+				   , int dim2
+				   )
 {
   int i;
   for(i = 0; i < color->nsendcount; i++)
     {
       int i1 = color->sendpartner[i];
+      double *sbuf = cd->sendbuf[i1];
       if (color->sendcount[i] > 0 && sendcount_local[i1] > 0)
 	{
 	  send_counter_local[i1] += color->sendcount[i];
 	  if(send_counter_local[i1] % sendcount_local[i1] == 0)
 	    {
-	      double *sbuf = cd->sendbuf[i1];
-#ifdef USE_MPI_PARALLEL_GATHER
+#ifdef USE_PARALLEL_GATHER
 	      exchange_dbl_copy_in_local(sbuf
 					 , data
 					 , dim2
@@ -187,7 +187,50 @@ void initiate_thread_comm_mpi(RangeList *color
 	      int k = cd->commpartner[i1];
 	      if (inc_global % cd->sendcount[k] == 0)
 		{
-#ifndef USE_MPI_PARALLEL_GATHER
+#ifndef USE_PARALLEL_GATHER
+		  exchange_dbl_copy_in(cd
+				       , sbuf
+				       , data
+				       , dim2
+				       , i1
+				       );
+#endif
+		}
+	    }
+	}
+    }
+}
+
+
+
+void initiate_thread_comm_mpi_send(RangeList *color
+				   , comm_data *cd
+				   , double *data
+				   , int dim2
+				   )
+{
+  int i;
+
+  for(i = 0; i < color->nsendcount; i++)
+    {
+      int i1 = color->sendpartner[i];
+      double *sbuf = cd->sendbuf[i1];
+      if (color->sendcount[i] > 0 && sendcount_local[i1] > 0)
+	{
+	  send_counter_local[i1] += color->sendcount[i];
+	  if(send_counter_local[i1] % sendcount_local[i1] == 0)
+	    {
+#ifdef USE_PARALLEL_GATHER
+	      exchange_dbl_copy_in_local(sbuf
+					 , data
+					 , dim2
+					 , i1);
+#endif
+	      int inc_global = inc_send_counter_global(i1, sendcount_local[i1]);
+	      int k = cd->commpartner[i1];
+	      if (inc_global % cd->sendcount[k] == 0)
+		{
+#ifndef USE_PARALLEL_GATHER
 		  exchange_dbl_copy_in(cd
 				       , sbuf
 				       , data
@@ -196,7 +239,7 @@ void initiate_thread_comm_mpi(RangeList *color
 				       );
 #endif
 #ifndef USE_MPI_MULTI_THREADED
-#pragma omp critical
+#pragma omp critical (mpi)
 #endif
 		  {
 		    exchange_dbl_mpi_send(cd
@@ -210,27 +253,39 @@ void initiate_thread_comm_mpi(RangeList *color
 	}
     }
 
+#if defined(USE_MPI_MASTER_TESTS_SEND)
+#pragma omp master
+  {
+#ifndef USE_MPI_MULTI_THREADED
+#pragma omp critical (mpi)
+#endif
+    {
+      exchange_dbl_mpi_test(cd);
+    }
+  }
+#endif
+
 }
 
-void initiate_thread_comm_mpifence(RangeList *color
-				   , comm_data *cd
-				   , double *data
-				   , int dim2
-				   )
+void initiate_thread_comm_mpi_fence(RangeList *color
+				    , comm_data *cd
+				    , double *data
+				    , int dim2
+				    )
 {
   int i;
   for(i = 0; i < color->nsendcount; i++)
     {
       int i1 = color->sendpartner[i];
+      void *sndbuf = get_sndbuf();
+      int k = cd->commpartner[i1];
+      double *const sbuf = (double *) (sndbuf + cd->local_send_offset[k]);
       if (color->sendcount[i] > 0 && sendcount_local[i1] > 0)
 	{
 	  send_counter_local[i1] += color->sendcount[i];
 	  if(send_counter_local[i1] % sendcount_local[i1] == 0)
 	    {
-	      void *sndbuf = get_sndbuf();
-	      int k = cd->commpartner[i1];
-	      double *const sbuf = (double *) (sndbuf + cd->local_send_offset[k]);
-#ifdef USE_MPI_PARALLEL_GATHER
+#ifdef USE_PARALLEL_GATHER
 	      exchange_dbl_copy_in_local(sbuf
 					 , data
 					 , dim2
@@ -239,7 +294,7 @@ void initiate_thread_comm_mpifence(RangeList *color
 	      int inc_global = inc_send_counter_global(i1, sendcount_local[i1]);
 	      if (inc_global % cd->sendcount[k] == 0)
 		{
-#ifndef USE_MPI_PARALLEL_GATHER
+#ifndef USE_PARALLEL_GATHER
 		  exchange_dbl_copy_in(cd
 				       , sbuf
 				       , data
@@ -248,7 +303,7 @@ void initiate_thread_comm_mpifence(RangeList *color
 				       );
 #endif
 #ifndef USE_MPI_MULTI_THREADED
-#pragma omp critical
+#pragma omp critical (mpi)
 #endif
 		  {
 		    exchange_dbl_mpidma_write(cd, data, dim2, i1);
@@ -260,26 +315,26 @@ void initiate_thread_comm_mpifence(RangeList *color
 }
 
 
-void initiate_thread_comm_mpipscw(RangeList *color
-				  , comm_data *cd
-				  , double *data
-				  , int dim2
-				  )
+void initiate_thread_comm_mpi_pscw(RangeList *color
+				   , comm_data *cd
+				   , double *data
+				   , int dim2
+				   )
 {
   int i;
   static volatile int shared_nput = 0;
   for(i = 0; i < color->nsendcount; i++)
     {
       int i1 = color->sendpartner[i];
+      void *sndbuf = get_sndbuf();
+      int k = cd->commpartner[i1];
+      double *const sbuf = (double *) (sndbuf + cd->local_send_offset[k]);
       if (color->sendcount[i] > 0 && sendcount_local[i1] > 0)
 	{
 	  send_counter_local[i1] += color->sendcount[i];
 	  if(send_counter_local[i1] % sendcount_local[i1] == 0)
 	    {
-	      void *sndbuf = get_sndbuf();
-	      int k = cd->commpartner[i1];
-	      double *const sbuf = (double *) (sndbuf + cd->local_send_offset[k]);
-#ifdef USE_MPI_PARALLEL_GATHER
+#ifdef USE_PARALLEL_GATHER
 	      exchange_dbl_copy_in_local(sbuf
 					 , data
 					 , dim2
@@ -288,7 +343,7 @@ void initiate_thread_comm_mpipscw(RangeList *color
 	      int inc_global = inc_send_counter_global(i1, sendcount_local[i1]);
 	      if (inc_global % cd->sendcount[k] == 0)
 		{
-#ifndef USE_MPI_PARALLEL_GATHER
+#ifndef USE_PARALLEL_GATHER
 		  exchange_dbl_copy_in(cd
 				       , sbuf
 				       , data
@@ -297,7 +352,7 @@ void initiate_thread_comm_mpipscw(RangeList *color
 				       );
 #endif
 #ifndef USE_MPI_MULTI_THREADED
-#pragma omp critical
+#pragma omp critical (mpi)
 #endif
 		  {
 		    exchange_dbl_mpidma_write(cd, data, dim2, i1);
@@ -324,17 +379,17 @@ void initiate_thread_comm_gaspi(RangeList *color
   for(i = 0; i < color->nsendcount; i++)
     {
       int i1 = color->sendpartner[i];
+      gaspi_pointer_t ptr;
+      int buffer_id = cd->send_stage % 2;
+      SUCCESS_OR_DIE(gaspi_segment_ptr(buffer_id, &ptr));
+      int k = cd->commpartner[i1];
+      double *sbuf = (double *) (ptr + cd->local_send_offset[k]); 
       if (color->sendcount[i] > 0 && sendcount_local[i1] > 0)
 	{
-	  int buffer_id = cd->send_stage % 2;
 	  send_counter_local[i1] += color->sendcount[i];
 	  if(send_counter_local[i1] % sendcount_local[i1] == 0)
 	    {
-	      gaspi_pointer_t ptr;
-	      SUCCESS_OR_DIE(gaspi_segment_ptr(buffer_id, &ptr));
-	      int k = cd->commpartner[i1];
-	      double *sbuf = (double *) (ptr + cd->local_send_offset[k]); 
-#ifdef USE_GASPI_PARALLEL_GATHER
+#ifdef USE_PARALLEL_GATHER
 	      exchange_dbl_copy_in_local(sbuf
 					 , data
 					 , dim2
@@ -344,7 +399,7 @@ void initiate_thread_comm_gaspi(RangeList *color
 	      int inc_global = inc_send_counter_global(i1, sendcount_local[i1]);
 	      if (inc_global % cd->sendcount[k] == 0)
 		{
-#ifndef USE_GASPI_PARALLEL_GATHER
+#ifndef USE_PARALLEL_GATHER
 		  exchange_dbl_copy_in(cd
 				       , sbuf
 				       , data

@@ -33,11 +33,29 @@ int get_sendcount_local(int i);
 int get_recvcount_local(int i);
 
 
-void initiate_thread_comm_mpi(RangeList *color
+void initiate_thread_comm_mpi_pack(RangeList *color
+				   , comm_data *cd
+				   , double *data
+				   , int dim2
+				   );
+
+void initiate_thread_comm_mpi_send(RangeList *color
 			      , comm_data *cd
 			      , double *data
 			      , int dim2
 			      );
+
+void initiate_thread_comm_mpi_fence(RangeList *color
+				   , comm_data *cd
+				   , double *data
+				   , int dim2
+				   );
+
+void initiate_thread_comm_mpi_pscw(RangeList *color
+				  , comm_data *cd
+				  , double *data
+				  , int dim2
+				  );
 
 void initiate_thread_comm_gaspi(RangeList *color
 				, comm_data *cd
@@ -45,17 +63,6 @@ void initiate_thread_comm_gaspi(RangeList *color
 				, int dim2
 				);
  
-void initiate_thread_comm_mpifence(RangeList *color
-				   , comm_data *cd
-				   , double *data
-				   , int dim2
-				   );
-
-void initiate_thread_comm_mpipscw(RangeList *color
-				  , comm_data *cd
-				  , double *data
-				  , int dim2
-				  );
 
 /* copy per target/source */
 void exchange_dbl_copy_in(comm_data *cd

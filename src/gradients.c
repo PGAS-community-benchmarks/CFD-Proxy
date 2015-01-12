@@ -125,7 +125,11 @@ void compute_gradients_gg_comm_free(comm_data *cd, solver_data *sd, int final)
 void compute_gradients_gg_mpi_bulk_sync(comm_data *cd, solver_data *sd, int final)
 {
   RangeList *color;  
+#if defined(USE_PACK_IN_BULK_SYNC) || defined(USE_PARALLEL_GATHER)
+  send_fn send = initiate_thread_comm_mpi_pack;
+#else
   send_fn send = NULL;
+#endif
   exch_fn exch = exchange_dbl_mpi_bulk_sync;
   double *data = &(sd->grad[0][0][0]);
   int     dim2 = NGRAD * 3;
@@ -142,7 +146,11 @@ void compute_gradients_gg_mpi_bulk_sync(comm_data *cd, solver_data *sd, int fina
 void compute_gradients_gg_mpi_early_recv(comm_data *cd, solver_data *sd, int final)
 {
   RangeList *color;  
+#if defined(USE_PACK_IN_BULK_SYNC) || defined(USE_PARALLEL_GATHER)
+  send_fn send = initiate_thread_comm_mpi_pack;
+#else
   send_fn send = NULL;
+#endif
   exch_fn exch = exchange_dbl_mpi_early_recv;
   double *data = &(sd->grad[0][0][0]);
   int     dim2 = NGRAD * 3;
@@ -158,7 +166,7 @@ void compute_gradients_gg_mpi_early_recv(comm_data *cd, solver_data *sd, int fin
 void compute_gradients_gg_mpi_async(comm_data *cd, solver_data *sd, int final)
 {
   RangeList *color;
-  send_fn send = initiate_thread_comm_mpi;
+  send_fn send = initiate_thread_comm_mpi_send;
   exch_fn exch = exchange_dbl_mpi_async;
   double *data = &(sd->grad[0][0][0]);
   int     dim2 = NGRAD * 3;
@@ -176,7 +184,11 @@ void compute_gradients_gg_mpi_async(comm_data *cd, solver_data *sd, int final)
 void compute_gradients_gg_gaspi_bulk_sync(comm_data *cd, solver_data *sd, int final)
 {
   RangeList *color;  
+#if defined(USE_PACK_IN_BULK_SYNC) || defined(USE_PARALLEL_GATHER)
+  send_fn send = initiate_thread_comm_mpi_pack;
+#else
   send_fn send = NULL;
+#endif
   exch_fn exch = exchange_dbl_gaspi_bulk_sync;
   double *data = &(sd->grad[0][0][0]);
   int     dim2 = NGRAD * 3;
@@ -210,7 +222,11 @@ void compute_gradients_gg_gaspi_async(comm_data *cd, solver_data *sd, int final)
 void compute_gradients_gg_mpifence_bulk_sync(comm_data *cd, solver_data *sd, int final)
 {
   RangeList *color;
+#if defined(USE_PACK_IN_BULK_SYNC) || defined(USE_PARALLEL_GATHER)
+  send_fn send = initiate_thread_comm_mpi_pack;
+#else
   send_fn send = NULL;
+#endif
   exch_fn exch = exchange_dbl_mpifence_bulk_sync;
   double *data = &(sd->grad[0][0][0]);
   int     dim2 = NGRAD * 3;
@@ -226,7 +242,7 @@ void compute_gradients_gg_mpifence_bulk_sync(comm_data *cd, solver_data *sd, int
 void compute_gradients_gg_mpifence_async(comm_data *cd, solver_data *sd, int final)
 {
   RangeList *color;  
-  send_fn send = initiate_thread_comm_mpifence;
+  send_fn send = initiate_thread_comm_mpi_fence;
   exch_fn exch = exchange_dbl_mpifence_async;
   double *data = &(sd->grad[0][0][0]);
   int     dim2 = NGRAD * 3;
@@ -243,7 +259,11 @@ void compute_gradients_gg_mpifence_async(comm_data *cd, solver_data *sd, int fin
 void compute_gradients_gg_mpipscw_bulk_sync(comm_data *cd, solver_data *sd, int final)
 {
   RangeList *color;
+#if defined(USE_PACK_IN_BULK_SYNC) || defined(USE_PARALLEL_GATHER)
+  send_fn send = initiate_thread_comm_mpi_pack;
+#else
   send_fn send = NULL;
+#endif
   exch_fn exch = exchange_dbl_mpipscw_bulk_sync;
   double *data = &(sd->grad[0][0][0]);
   int     dim2 = NGRAD * 3;
@@ -259,7 +279,7 @@ void compute_gradients_gg_mpipscw_bulk_sync(comm_data *cd, solver_data *sd, int 
 void compute_gradients_gg_mpipscw_async(comm_data *cd, solver_data *sd, int final)
 {
   RangeList *color;  
-  send_fn send = initiate_thread_comm_mpipscw;
+  send_fn send = initiate_thread_comm_mpi_pscw;
   exch_fn exch = exchange_dbl_mpipscw_async;
   double *data = &(sd->grad[0][0][0]);
   int     dim2 = NGRAD * 3;

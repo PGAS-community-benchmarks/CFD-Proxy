@@ -122,6 +122,7 @@ void exchange_dbl_mpidma_write(comm_data *cd
 	      , MPI_CHAR // type at target
 	      , rcvwin // MPI DMA win to use
 	      );
+      cd->send_flag[i]++;
     }
 }
 
@@ -156,8 +157,10 @@ void exchange_dbl_mpifence_bulk_sync(comm_data *cd
     for(i = 0; i < ncommdomains; i++)
       {
 	int k = cd->commpartner[i];
+#if !defined(USE_PACK_IN_BULK_SYNC) && !defined(USE_PARALLEL_GATHER)
 	double *const sbuf = (double *) (sndbuf + cd->local_send_offset[k]);
 	exchange_dbl_copy_in(cd, sbuf, data, dim2, i);
+#endif
         exchange_dbl_mpidma_write(cd, data, dim2, i);
       }
     MPI_Win_fence(MPI_MODE_NOSUCCEED | MPI_MODE_NOSTORE , rcvwin); // make sure data has arrived
@@ -171,7 +174,6 @@ void exchange_dbl_mpifence_bulk_sync(comm_data *cd
       }
     for(i = 0; i < ncommdomains; i++)
       {
-	cd->send_flag[i]++;
 	cd->recv_flag[i]++;
       }
     
@@ -220,7 +222,6 @@ void exchange_dbl_mpifence_async(comm_data *cd
 
     for(i = 0; i < ncommdomains; i++)
       {
-	cd->send_flag[i]++;
 	cd->recv_flag[i]++;
       }
     
@@ -265,7 +266,9 @@ void exchange_dbl_mpipscw_bulk_sync(comm_data *cd
       {
 	int k = cd->commpartner[i];
 	double *const sbuf = (double *) (sndbuf + cd->local_send_offset[k]);
+#if !defined(USE_PACK_IN_BULK_SYNC) && !defined(USE_PARALLEL_GATHER)
 	exchange_dbl_copy_in(cd, sbuf, data, dim2, i);
+#endif
         exchange_dbl_mpidma_write(cd, data, dim2, i);
       }
     mpidma_async_complete();
@@ -281,7 +284,6 @@ void exchange_dbl_mpipscw_bulk_sync(comm_data *cd
 
     for(i = 0; i < ncommdomains; i++)
       {
-	cd->send_flag[i]++;
 	cd->recv_flag[i]++;
       }
     
@@ -338,7 +340,6 @@ void exchange_dbl_mpipscw_async(comm_data *cd
     int i;
     for(i = 0; i < ncommdomains; i++)
       {
-	cd->send_flag[i]++;
 	cd->recv_flag[i]++;
       }
     
@@ -387,7 +388,6 @@ void exchange_dbl_mpipscw_async(comm_data *cd
 
     for(i = 0; i < ncommdomains; i++)
       {
-	cd->send_flag[i]++;
 	cd->recv_flag[i]++;
       }
     

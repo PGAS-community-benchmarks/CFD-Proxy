@@ -124,6 +124,8 @@ void exchange_dbl_gaspi_write(comm_data *cd
 			 , queue_id
 			 , GASPI_BLOCK
 			 ));
+      /* inc send flag */
+      cd->send_flag[i]++;
 
     }
 
@@ -170,6 +172,7 @@ void exchange_dbl_gaspi_bulk_sync(comm_data *cd
 	  if (sendcount[k] > 0)
 	    {
 	      int buffer_id = cd->send_stage % 2;
+#if !defined(USE_PACK_IN_BULK_SYNC) && !defined(USE_PARALLEL_GATHER)
 	      gaspi_pointer_t ptr;
 	      SUCCESS_OR_DIE(gaspi_segment_ptr(buffer_id, &ptr));		  
 	      double *sbuf = (double *) (ptr + local_send_offset[k]);		  
@@ -179,6 +182,7 @@ void exchange_dbl_gaspi_bulk_sync(comm_data *cd
 				   , dim2
 				   , i
 				   );
+#endif
 	      exchange_dbl_gaspi_write(cd, data, dim2, buffer_id, i);
 	    }
 	}
@@ -227,7 +231,6 @@ void exchange_dbl_gaspi_bulk_sync(comm_data *cd
   
       for(i = 0; i < ncommdomains; i++)
 	{
-	  cd->send_flag[i]++;
 	  cd->recv_flag[i]++;
 	}
       // inc stage counter
@@ -267,7 +270,7 @@ void exchange_dbl_gaspi_async(comm_data *cd
 
   int i;
 
-#ifdef USE_GASPI_PARALLEL_SCATTER
+#ifdef USE_PARALLEL_SCATTER
 
   for (i = 0; i < ncommdomains; ++i)
     {
@@ -316,7 +319,6 @@ void exchange_dbl_gaspi_async(comm_data *cd
 
       for(i = 0; i < ncommdomains; i++)
 	{
-	  cd->send_flag[i]++;
 	  cd->recv_flag[i]++;
 	}
 
@@ -373,7 +375,6 @@ void exchange_dbl_gaspi_async(comm_data *cd
     {
       for(i = 0; i < ncommdomains; i++)
 	{
-	  cd->send_flag[i]++;
 	  cd->recv_flag[i]++;
 	}
       // inc stage counter

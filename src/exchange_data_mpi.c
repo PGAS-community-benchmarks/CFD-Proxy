@@ -73,6 +73,24 @@ void init_mpi_requests(comm_data *cd, int dim2)
 
 }
 
+void exchange_dbl_mpi_test(comm_data *cd)
+{
+  int i, flag = 0;
+  int ncommdomains  = cd->ncommdomains;
+  
+  for (i = 0; i < ncommdomains; i++)
+    {
+      volatile int send = cd->send_flag[i];
+      if (send > cd->send_stage)
+	{
+	  MPI_Test(&(cd->req[ncommdomains + i])
+		   , &flag 
+		   , &(cd->stat[ncommdomains + i])
+		   );
+	}
+    }
+}
+
 void exchange_dbl_mpi_send(comm_data *cd
 			   , double *data
 			   , int dim2
@@ -104,6 +122,8 @@ void exchange_dbl_mpi_send(comm_data *cd
 		, MPI_COMM_WORLD
 		, &(cd->req[ncommdomains + i])
 		);
+      /* inc send flag */
+      cd->send_flag[i]++;
     }
 }
 
@@ -144,6 +164,7 @@ void exchange_dbl_mpi_post_recv(comm_data *cd
 }
 
 
+
 void exchange_dbl_mpi_bulk_sync(comm_data *cd
 				, double *data
 				, int dim2
@@ -182,7 +203,9 @@ void exchange_dbl_mpi_bulk_sync(comm_data *cd
 	  if (count > 0)
 	    {
 	      double *sbuf = cd->sendbuf[i];	  
+#if !defined(USE_PACK_IN_BULK_SYNC) && !defined(USE_PARALLEL_GATHER)
 	      exchange_dbl_copy_in(cd, sbuf, data, dim2, i);
+#endif
 	      exchange_dbl_mpi_send(cd, data, dim2, i);
 	    }
 	}      
@@ -193,7 +216,6 @@ void exchange_dbl_mpi_bulk_sync(comm_data *cd
 		  );
       for(i = 0; i < ncommdomains; i++)
 	{
-	  cd->send_flag[i]++;
 	  cd->recv_flag[i]++;
 	}
 
@@ -252,7 +274,9 @@ void exchange_dbl_mpi_early_recv(comm_data *cd
 	  if (count > 0)
 	    {
 	      double *sbuf = cd->sendbuf[i];	  
+#if !defined(USE_PACK_IN_BULK_SYNC) && !defined(USE_PARALLEL_GATHER)
 	      exchange_dbl_copy_in(cd, sbuf, data, dim2, i);
+#endif
 	      exchange_dbl_mpi_send(cd, data, dim2, i);
 	    }
 	}      
@@ -263,7 +287,6 @@ void exchange_dbl_mpi_early_recv(comm_data *cd
 
       for(i = 0; i < ncommdomains; i++)
 	{
-	  cd->send_flag[i]++;
 	  cd->recv_flag[i]++;
 	}
 
@@ -290,6 +313,8 @@ void exchange_dbl_mpi_early_recv(comm_data *cd
 #pragma omp barrier
 
 }
+
+
 
 
 void exchange_dbl_mpi_async(comm_data *cd
@@ -334,7 +359,7 @@ void exchange_dbl_mpi_async(comm_data *cd
 	  // flag received buffer 
 	  cd->recv_flag[id]++;
 
-#ifndef USE_MPI_PARALLEL_SCATTER
+#ifndef USE_PARALLEL_SCATTER
 	  /* copy the data from the recvbuf into out data field */
 	  double *rbuf = cd->recvbuf[id];
 	  exchange_dbl_copy_out(cd, rbuf, data, dim2, id);	  
@@ -342,7 +367,7 @@ void exchange_dbl_mpi_async(comm_data *cd
 	} 
     }
 
-#ifdef USE_MPI_PARALLEL_SCATTER
+#ifdef USE_PARALLEL_SCATTER
   for (i = 0; i < ncommdomains; ++i)
     {
       int nrecv = get_recvcount_local(i);
@@ -371,11 +396,6 @@ void exchange_dbl_mpi_async(comm_data *cd
 		  , &(cd->stat[ncommdomains])
 		  );
 
-      for(i = 0; i < ncommdomains; i++)
-	{
-	  cd->send_flag[i]++;
-	}
-
       // inc stage counter
       cd->send_stage++;
       cd->recv_stage++;
@@ -388,7 +408,7 @@ void exchange_dbl_mpi_async(comm_data *cd
 
     }
 
-#ifndef USE_MPI_PARALLEL_SCATTER
+#ifndef USE_PARALLEL_SCATTER
 /* wait for recv/unpack */
 #pragma omp barrier
 #else
@@ -409,10 +429,8 @@ void exchange_dbl_mpi_async(comm_data *cd
       for(i = 0; i < ncommdomains; i++)
 	{
 	  cd->recv_flag[i]++;
-	  cd->send_flag[i]++;
 	}
 
-      int i;
       for (i = 0; i < ncommdomains; ++i)
 	{
 	  double *rbuf = cd->recvbuf[i];

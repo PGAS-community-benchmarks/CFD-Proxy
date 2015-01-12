@@ -7,6 +7,8 @@ void init_mpi_requests(comm_data *cd
 		       , int dim2
 		       );
 
+void exchange_dbl_mpi_test(comm_data *cd);
+
 void exchange_dbl_mpi_bulk_sync(comm_data *cd
 				, double *data
 				, int dim2
