@@ -1,31 +1,37 @@
-GPI2_DIR = $(HOME)/GPI2-1.1.1_intel-5.0.1.035.mic
-NETCDF_DIR = $(HOME)/netcdf-4.2.1.1.mic
-MPI_DIR=/export/opt/intel2015/impi/5.0.1.035/mic
-CC = $(MPI_DIR)/bin/mpiicc
-#GPI2_DIR = $(HOME)/GPI2-1.1.1_intel-5.0.1.035
-#NETCDF_DIR = $(HOME)/netcdf-4.2.1.1
-#MPI_DIR=/export/opt/intel2015/impi/5.0.1.035
-#CC = $(MPI_DIR)/bin64/mpicc
+#GPI2_DIR = $(HOME)/GPI2-1.1.1_intel-5.0.1.035.mic
+#NETCDF_DIR = $(HOME)/netcdf-4.2.1.1.mic
+#MPI_DIR=/export/opt/intel2015/impi/5.0.1.035/mic
+#CC = $(MPI_DIR)/bin/mpiicc
+
+#GPI2_DIR = $(HOME)/GPI2-1.1.1_intel-4.1.0
+#NETCDF_DIR = $(HOME)/netcdf-4.2.1.1.mic
+#MPI_DIR=/export/opt/intel2013/impi/4.1.0.024/mic
+#CC = $(MPI_DIR)/bin/mpiicc
+
+GPI2_DIR = $(HOME)/GPI2-1.1.1_intel-5.0.1.035
+NETCDF_DIR = $(HOME)/netcdf-4.2.1.1
+MPI_DIR=/export/opt/intel2015/impi/5.0.1.035
+CC = $(MPI_DIR)/bin64/mpicc
 
 BIN += hybrid.f6.exe
 
 CFLAGS += -Wall
 CFLAGS += -Wextra
 CFLAGS += -Wshadow
-CFLAGS += -O2 -g -mmic
-#CFLAGS += -O2 -g 
+#CFLAGS += -O2 -g -mmic
+CFLAGS += -O2 -g 
 CFLAGS += -std=c99
-#CFLAGS += -fopenmp
-CFLAGS += -openmp
+CFLAGS += -fopenmp
+#CFLAGS += -openmp
 #CFLAGS += -DDEBUG 
 
 CFLAGS += -DGCC_EXTENSION
-CFLAGS += -DUSE_NTHREADS=240
+CFLAGS += -DUSE_NTHREADS=24
 CFLAGS += -DUSE_MPI_MULTI_THREADED
 CFLAGS += -DUSE_GASPI
 CFLAGS += -DUSE_MPI_WAIT_ANY
 CFLAGS += -DUSE_PSCW_EARLY_WAIT
-#CFLAGS += -DUSE_MPI_MASTER_TESTS_SEND
+#CFLAGS += -DUSE_MPI_TEST
 CFLAGS += -DUSE_PACK_IN_BULK_SYNC
 CFLAGS += -DUSE_PARALLEL_GATHER
 CFLAGS += -DUSE_PARALLEL_SCATTER
@@ -39,8 +45,8 @@ INCLUDE_DIR += ..
 
 LIBRARY_DIR += $(NETCDF_DIR)/lib
 LIBRARY_DIR += $(MPI_DIR)/lib
-LIBRARY_DIR += $(GPI2_DIR)/lib64/mic
-#LIBRARY_DIR += $(GPI2_DIR)/lib64
+#LIBRARY_DIR += $(GPI2_DIR)/lib64/mic
+LIBRARY_DIR += $(GPI2_DIR)/lib64
 
 LDFLAGS += $(addprefix -L,$(LIBRARY_DIR))
 CFLAGS += $(addprefix -I,$(INCLUDE_DIR))

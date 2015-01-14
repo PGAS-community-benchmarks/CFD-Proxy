@@ -224,34 +224,32 @@ void test_solver(comm_data *cd, solver_data *sd)
 
       printf("\n*** COMPILE FLAGS\n");
 #ifdef USE_MPI_MULTI_THREADED
-      printf("-DUSE_MPI_MULTI_THREADED\n");
-#else
-      printf("-DUSE_MPI_SERIALIZED\n");
+      printf(" -DUSE_MPI_MULTI_THREADED");
 #endif
 #ifdef USE_MPI_WAIT_ANY
-      printf("-DUSE_MPI_WAIT_ANY\n");
+      printf(" -DUSE_MPI_WAIT_ANY");
 #endif
 #ifdef USE_PSCW_EARLY_WAIT
-      printf("-DUSE_PSCW_EARLY_WAIT\n");
+      printf(" -DUSE_PSCW_EARLY_WAIT");
 #endif
-#ifdef USE_MPI_MASTER_TESTS_SEND
-      printf("-DUSE_MPI_MASTER_TESTS_SEND\n");
+#ifdef USE_MPI_TEST
+      printf(" -DUSE_MPI_TEST");
 #endif
 #ifdef USE_PACK_IN_BULK_SYNC
-      printf("-DUSE_PACK_IN_BULK_SYNC\n");
+      printf(" -DUSE_PACK_IN_BULK_SYNC");
 #endif
 #ifdef USE_PARALLEL_GATHER
-      printf("-DUSE_PARALLEL_GATHER\n");
+      printf(" -DUSE_PARALLEL_GATHER");
 #endif
 #ifdef USE_PARALLEL_SCATTER
-      printf("-DUSE_PARALLEL_SCATTER\n");
+      printf(" -DUSE_PARALLEL_SCATTER");
 #endif
 
       for (k = 0; k < N_SOLVER; ++k)
 	{ 
 	  sort_median(&median[k][0], &median[k][N_MEDIAN-1]);
 	}
-      printf("*** TIMINGS\n");
+      printf("\n*** TIMINGS\n");
       printf("                             comm_free: %10.6f\n",median[0][N_MEDIAN/2]);
       printf("            exchange_dbl_mpi_bulk_sync: %10.6f\n",median[1][N_MEDIAN/2]);
       printf("           exchange_dbl_mpi_early_recv: %10.6f\n",median[2][N_MEDIAN/2]);

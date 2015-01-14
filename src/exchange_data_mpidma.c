@@ -156,8 +156,8 @@ void exchange_dbl_mpifence_bulk_sync(comm_data *cd
     MPI_Win_fence(MPI_MODE_NOPRECEDE, rcvwin);
     for(i = 0; i < ncommdomains; i++)
       {
-	int k = cd->commpartner[i];
 #if !defined(USE_PACK_IN_BULK_SYNC) && !defined(USE_PARALLEL_GATHER)
+	int k = cd->commpartner[i];
 	double *const sbuf = (double *) (sndbuf + cd->local_send_offset[k]);
 	exchange_dbl_copy_in(cd, sbuf, data, dim2, i);
 #endif
@@ -264,9 +264,9 @@ void exchange_dbl_mpipscw_bulk_sync(comm_data *cd
     mpidma_async_post_start();
     for(i = 0; i < ncommdomains; i++)
       {
+#if !defined(USE_PACK_IN_BULK_SYNC) && !defined(USE_PARALLEL_GATHER)
 	int k = cd->commpartner[i];
 	double *const sbuf = (double *) (sndbuf + cd->local_send_offset[k]);
-#if !defined(USE_PACK_IN_BULK_SYNC) && !defined(USE_PARALLEL_GATHER)
 	exchange_dbl_copy_in(cd, sbuf, data, dim2, i);
 #endif
         exchange_dbl_mpidma_write(cd, data, dim2, i);

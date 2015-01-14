@@ -253,7 +253,7 @@ void initiate_thread_comm_mpi_send(RangeList *color
 	}
     }
 
-#if defined(USE_MPI_MASTER_TESTS_SEND)
+#if defined(USE_MPI_TEST)
 #pragma omp master
   {
 #ifndef USE_MPI_MULTI_THREADED

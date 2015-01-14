@@ -35,7 +35,6 @@ void set_all_points_of_color(solver_data *sd
 
   ASSERT(sd->nallpoints > 0);
   ASSERT(fpoint != NULL);
-  ASSERT(color != NULL);
 
   int *tmp1   = check_malloc(sd->nallpoints * sizeof(int));
   for(i = 0; i < sd->nallpoints; i++) 
@@ -123,7 +122,6 @@ void set_last_points_of_color(solver_data *sd
 
   ASSERT(sd->nallpoints > 0);
   ASSERT(fpoint != NULL);
-  ASSERT(color != NULL);
 
   int *tmp1   = check_malloc(sd->nallpoints * sizeof(int));
   for(i = 0; i < sd->nallpoints; i++) 
@@ -237,12 +235,10 @@ void set_last_points_of_color(solver_data *sd
 
 }
 
-void set_first_points_of_color(solver_data *sd
-			       )
+void set_first_points_of_color(solver_data *sd)
 {
-  int i, k;
+  int k;
   RangeList *color;
-  ASSERT(color != NULL);
 
   /* all first points of color excluding outer halo */
   int nfirstpoints = 0;

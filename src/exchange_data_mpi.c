@@ -202,8 +202,8 @@ void exchange_dbl_mpi_bulk_sync(comm_data *cd
 	  int count = sendcount[k];
 	  if (count > 0)
 	    {
-	      double *sbuf = cd->sendbuf[i];	  
 #if !defined(USE_PACK_IN_BULK_SYNC) && !defined(USE_PARALLEL_GATHER)
+	      double *sbuf = cd->sendbuf[i];	  
 	      exchange_dbl_copy_in(cd, sbuf, data, dim2, i);
 #endif
 	      exchange_dbl_mpi_send(cd, data, dim2, i);
@@ -273,8 +273,8 @@ void exchange_dbl_mpi_early_recv(comm_data *cd
 	  int count = sendcount[k];
 	  if (count > 0)
 	    {
-	      double *sbuf = cd->sendbuf[i];	  
 #if !defined(USE_PACK_IN_BULK_SYNC) && !defined(USE_PARALLEL_GATHER)
+	      double *sbuf = cd->sendbuf[i];	  
 	      exchange_dbl_copy_in(cd, sbuf, data, dim2, i);
 #endif
 	      exchange_dbl_mpi_send(cd, data, dim2, i);
