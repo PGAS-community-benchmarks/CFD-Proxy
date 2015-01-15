@@ -29,10 +29,10 @@
 #include "exchange_data_gaspi.h"
 #endif
 
-#define N_MEDIAN 10
+#define N_MEDIAN 20
 #define N_SOLVER 10
 
-void test_solver(comm_data *cd, solver_data *sd)
+void test_solver(comm_data *cd, solver_data *sd, int NTHREADS)
 {
   int k;
   double time, median[N_SOLVER][N_MEDIAN];
@@ -50,6 +50,7 @@ void test_solver(comm_data *cd, solver_data *sd)
 	    int final = (i == sd->niter-1) ? 1 : 0;
 	    compute_gradients_gg_comm_free(cd, sd, final);
 	    compute_psd_flux(sd);
+#pragma omp barrier  
 	  }
       }
       MPI_Barrier(MPI_COMM_WORLD);
@@ -67,12 +68,12 @@ void test_solver(comm_data *cd, solver_data *sd)
 	    int final = (i == sd->niter-1) ? 1 : 0;
 	    compute_gradients_gg_mpi_bulk_sync(cd, sd, final);
 	    compute_psd_flux(sd);
+#pragma omp barrier  
 	  }
       }
       MPI_Barrier(MPI_COMM_WORLD);
       time += now();
       median[1][k] = time;
-
 
       /* MPI bulk sync, early recv */
       time = -now();
@@ -86,6 +87,7 @@ void test_solver(comm_data *cd, solver_data *sd)
 	    int final = (i == sd->niter-1) ? 1 : 0;
 	    compute_gradients_gg_mpi_early_recv(cd, sd, final);
 	    compute_psd_flux(sd);
+#pragma omp barrier  
 	  }
       }
       MPI_Barrier(MPI_COMM_WORLD);
@@ -104,6 +106,7 @@ void test_solver(comm_data *cd, solver_data *sd)
 	    int final = (i == sd->niter-1) ? 1 : 0;
 	    compute_gradients_gg_mpi_async(cd, sd, final);
 	    compute_psd_flux(sd);
+#pragma omp barrier  
 	  }  
       }
       MPI_Barrier(MPI_COMM_WORLD);
@@ -122,6 +125,7 @@ void test_solver(comm_data *cd, solver_data *sd)
 	    int final = (i == sd->niter-1) ? 1 : 0;
 	    compute_gradients_gg_gaspi_bulk_sync(cd, sd, final);  
 	    compute_psd_flux(sd);
+#pragma omp barrier  
 	  }
       }
       MPI_Barrier(MPI_COMM_WORLD);
@@ -139,6 +143,7 @@ void test_solver(comm_data *cd, solver_data *sd)
 	    int final = (i == sd->niter-1) ? 1 : 0;
 	    compute_gradients_gg_gaspi_async(cd, sd, final);
 	    compute_psd_flux(sd);
+#pragma omp barrier  
 	  }  
       }
       MPI_Barrier(MPI_COMM_WORLD);
@@ -158,6 +163,7 @@ void test_solver(comm_data *cd, solver_data *sd)
 	    int final = (i == sd->niter-1) ? 1 : 0;
 	    compute_gradients_gg_mpifence_bulk_sync(cd, sd, final);
 	    compute_psd_flux(sd);
+#pragma omp barrier  
 	  }
       }
       MPI_Barrier(MPI_COMM_WORLD);
@@ -176,6 +182,7 @@ void test_solver(comm_data *cd, solver_data *sd)
 	    int final = (i == sd->niter-1) ? 1 : 0;
 	    compute_gradients_gg_mpifence_async(cd, sd, final);
 	    compute_psd_flux(sd);
+#pragma omp barrier  
 	  }
       }
       MPI_Barrier(MPI_COMM_WORLD);
@@ -193,6 +200,7 @@ void test_solver(comm_data *cd, solver_data *sd)
 	    int final = (i == sd->niter-1) ? 1 : 0;
 	    compute_gradients_gg_mpipscw_bulk_sync(cd, sd, final);
 	    compute_psd_flux(sd);
+#pragma omp barrier  
 	  }
       }
       MPI_Barrier(MPI_COMM_WORLD);
@@ -211,6 +219,7 @@ void test_solver(comm_data *cd, solver_data *sd)
 	    int final = (i == sd->niter-1) ? 1 : 0;
 	    compute_gradients_gg_mpipscw_async(cd, sd, final);
 	    compute_psd_flux(sd);
+#pragma omp barrier  
 	  }
       }
       MPI_Barrier(MPI_COMM_WORLD);
@@ -244,6 +253,10 @@ void test_solver(comm_data *cd, solver_data *sd)
 #ifdef USE_PARALLEL_SCATTER
       printf(" -DUSE_PARALLEL_SCATTER");
 #endif
+
+      printf("\n\n*** SETUP\n");
+      printf("                                 nProc: %d\n",cd->nProc);
+      printf("                              NTHREADS: %d\n",NTHREADS);
 
       for (k = 0; k < N_SOLVER; ++k)
 	{ 

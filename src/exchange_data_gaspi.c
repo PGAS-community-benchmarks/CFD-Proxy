@@ -187,7 +187,7 @@ void exchange_dbl_gaspi_bulk_sync(comm_data *cd
 	    }
 	}
 
-      /* wait for notify */
+      /* wait for all notify */
       for(i = 0; i < ncommdomains; i++)
 	{ 
 	  int k = commpartner[i];
@@ -211,12 +211,15 @@ void exchange_dbl_gaspi_bulk_sync(comm_data *cd
 	    }
 	}
 
-      /* copy the data from the recvbuffer into out data field */
       for(i = 0; i < ncommdomains; i++)
 	{
 	  int k = commpartner[i];
 	  ASSERT(recvcount[k] > 0);	 
 
+	  // flag received buffer 
+	  cd->recv_flag[i]++;
+
+	  /* copy the data from the recvbuffer into out data field */
 	  int buffer_id = cd->recv_stage % 2;
 	  gaspi_pointer_t ptr;
 	  SUCCESS_OR_DIE(gaspi_segment_ptr(2+buffer_id, &ptr));		  
@@ -229,10 +232,6 @@ void exchange_dbl_gaspi_bulk_sync(comm_data *cd
 				);
 	}
   
-      for(i = 0; i < ncommdomains; i++)
-	{
-	  cd->recv_flag[i]++;
-	}
       // inc stage counter
       cd->send_stage++;
       cd->recv_stage++;
@@ -300,7 +299,6 @@ void exchange_dbl_gaspi_async(comm_data *cd
 	}
     }
 
-
   if (this_is_the_last_thread())
     {
       for (i = 0; i < ncommdomains; ++i)
@@ -315,10 +313,8 @@ void exchange_dbl_gaspi_async(comm_data *cd
 					      , &value
 					      ));
 	  ASSERT(value != 0);
-	}
-
-      for(i = 0; i < ncommdomains; i++)
-	{
+	  
+	  // flag received buffer 
 	  cd->recv_flag[i]++;
 	}
 
@@ -358,6 +354,9 @@ void exchange_dbl_gaspi_async(comm_data *cd
 	  int k = commpartner[id];	  
 	  ASSERT(recvcount[k] > 0);	 
 
+	  // flag received buffer 
+	  cd->recv_flag[id]++;
+
 	  /* copy the data from the recvbuffer into out data field */
 	  gaspi_pointer_t ptr;
 	  SUCCESS_OR_DIE(gaspi_segment_ptr(2+buffer_id, &ptr));		  
@@ -373,10 +372,6 @@ void exchange_dbl_gaspi_async(comm_data *cd
   
   if (this_is_the_last_thread())
     {
-      for(i = 0; i < ncommdomains; i++)
-	{
-	  cd->recv_flag[i]++;
-	}
       // inc stage counter
       cd->send_stage++;
       cd->recv_stage++;

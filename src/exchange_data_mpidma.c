@@ -165,16 +165,15 @@ void exchange_dbl_mpifence_bulk_sync(comm_data *cd
       }
     MPI_Win_fence(MPI_MODE_NOSUCCEED | MPI_MODE_NOSTORE , rcvwin); // make sure data has arrived
 
-    /* copy the data from the recvbuffer into out data field */
     for(i = 0; i < ncommdomains; i++)
       {
+	// flag received buffer 
+	cd->recv_flag[i]++;
+
+	/* copy the data from the recvbuffer into out data field */
         int k = commpartner[i];
 	double *rbuf = (double *) (rcvbuf + local_recv_offset[k]);
 	exchange_dbl_copy_out(cd, rbuf, data, dim2, i);
-      }
-    for(i = 0; i < ncommdomains; i++)
-      {
-	cd->recv_flag[i]++;
       }
     
     cd->send_stage++;
@@ -212,19 +211,17 @@ void exchange_dbl_mpifence_async(comm_data *cd
     MPI_Win_fence(MPI_MODE_NOSTORE , rcvwin); // make sure data has arrived AND start next round
 
     int i;
-    /* copy the data from the recvbuffer into out data field */
     for (i = 0; i < ncommdomains; ++i)
       {
+	// flag received buffer 
+	cd->recv_flag[i]++;
+
+	/* copy the data from the recvbuffer into out data field */
         int k = commpartner[i];
 	double *rbuf = (double *) (rcvbuf + local_recv_offset[k]);
 	exchange_dbl_copy_out(cd, rbuf, data, dim2, i);
       }
 
-    for(i = 0; i < ncommdomains; i++)
-      {
-	cd->recv_flag[i]++;
-      }
-    
     // inc stage counter
     cd->send_stage++;
     cd->recv_stage++;
@@ -274,19 +271,17 @@ void exchange_dbl_mpipscw_bulk_sync(comm_data *cd
     mpidma_async_complete();
     mpidma_async_wait();
 
-    /* copy the data from the recvbuffer into out data field */
     for(i = 0; i < ncommdomains; i++)
       {
+	// flag received buffer 
+	cd->recv_flag[i]++;
+
+	/* copy the data from the recvbuffer into out data field */
         int k = commpartner[i];
 	double *rbuf = (double *) (rcvbuf + local_recv_offset[k]);
 	exchange_dbl_copy_out(cd, rbuf, data, dim2, i);
       }
 
-    for(i = 0; i < ncommdomains; i++)
-      {
-	cd->recv_flag[i]++;
-      }
-    
     // inc stage counter
     cd->send_stage++;
     cd->recv_stage++;
@@ -312,10 +307,10 @@ void exchange_dbl_mpipscw_async(comm_data *cd
   int *commpartner  = cd->commpartner;
   int *recvcount    = cd->recvcount;
   int **recvindex   = cd->recvindex;
+  gaspi_offset_t *local_recv_offset = cd->local_recv_offset;
 
   if (this_is_the_first_thread())
   {
-    gaspi_offset_t *local_recv_offset = cd->local_recv_offset;
 
     ASSERT(dim2 > 0);
     ASSERT(ncommdomains != 0);
@@ -326,23 +321,50 @@ void exchange_dbl_mpipscw_async(comm_data *cd
     mpidma_async_wait();
 
     int i;
-    /* copy the data from the recvbuffer into out data field */
     for (i = 0; i < ncommdomains; ++i)
       {
+	// flag received buffer 
+	cd->recv_flag[i]++;
+
+#ifndef USE_PARALLEL_SCATTER
+	/* copy the data from the recvbuf into out data field */
         int k = commpartner[i];
 	double *rbuf = (double *) (rcvbuf + local_recv_offset[k]);
 	exchange_dbl_copy_out(cd, rbuf, data, dim2, i);
+#endif
+
       }
   }
 
+#ifdef USE_PARALLEL_SCATTER
+  int i;
+  for (i = 0; i < ncommdomains; ++i)
+    {
+      int nrecv = get_recvcount_local(i);
+      if (nrecv > 0)
+	{
+	  volatile int flag;
+	  while ((flag = cd->recv_flag[i]) == cd->recv_stage)
+	    {
+	      _mm_pause();
+	    }
+	  /* sanity check */
+	  ASSERT(flag == (cd->recv_stage + 1));
+
+	  /* copy the data from the recvbuf into out data field */
+	  int k = commpartner[i];
+	  double *rbuf = (double *) (rcvbuf + local_recv_offset[k]);		  
+	  exchange_dbl_copy_out_local(rbuf
+				      , data
+				      , dim2
+				      , i
+				      );
+      } 
+  }
+#endif
+
   if (this_is_the_last_thread())
   {
-    int i;
-    for(i = 0; i < ncommdomains; i++)
-      {
-	cd->recv_flag[i]++;
-      }
-    
     // inc stage counter
     cd->send_stage++;
     cd->recv_stage++;
@@ -378,19 +400,17 @@ void exchange_dbl_mpipscw_async(comm_data *cd
     mpidma_async_wait();
 
     int i;
-    /* copy the data from the recvbuffer into out data field */
     for (i = 0; i < ncommdomains; ++i)
       {
+	// flag received buffer 
+	cd->recv_flag[i]++;
+
+	/* copy the data from the recvbuffer into out data field */
         int k = commpartner[i];
 	double *rbuf = (double *) (rcvbuf + local_recv_offset[k]);
 	exchange_dbl_copy_out(cd, rbuf, data, dim2, i);
       }
 
-    for(i = 0; i < ncommdomains; i++)
-      {
-	cd->recv_flag[i]++;
-      }
-    
     // inc stage counter
     cd->send_stage++;
     cd->recv_stage++;

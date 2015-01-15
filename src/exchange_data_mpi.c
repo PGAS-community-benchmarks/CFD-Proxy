@@ -214,14 +214,14 @@ void exchange_dbl_mpi_bulk_sync(comm_data *cd
 		  , cd->req
 		  , cd->stat
 		  );
-      for(i = 0; i < ncommdomains; i++)
-	{
-	  cd->recv_flag[i]++;
-	}
 
-      /* copy the data from the recvbuf into out data field */
+
       for(i = 0; i < ncommdomains; i++)
 	{
+	  // flag received buffer 
+	  cd->recv_flag[i]++;
+
+	  /* copy the data from the recvbuf into out data field */
 	  double *rbuf = cd->recvbuf[i];
 	  exchange_dbl_copy_out(cd, rbuf, data, dim2, i);
 	}
@@ -287,12 +287,10 @@ void exchange_dbl_mpi_early_recv(comm_data *cd
 
       for(i = 0; i < ncommdomains; i++)
 	{
+	  // flag received buffer 
 	  cd->recv_flag[i]++;
-	}
 
-      /* copy the data from the recvbuf into out data field */
-      for(i = 0; i < ncommdomains; i++)
-	{
+	  /* copy the data from the recvbuf into out data field */
 	  double *rbuf = cd->recvbuf[i];
 	  exchange_dbl_copy_out(cd, rbuf, data, dim2, i);
 	}
@@ -426,13 +424,12 @@ void exchange_dbl_mpi_async(comm_data *cd
 		  , cd->stat
 		  );
 
-      for(i = 0; i < ncommdomains; i++)
-	{
-	  cd->recv_flag[i]++;
-	}
-
       for (i = 0; i < ncommdomains; ++i)
 	{
+	  // flag received buffer 
+	  cd->recv_flag[i]++;
+
+	  /* copy the data from the recvbuf into out data field */
 	  double *rbuf = cd->recvbuf[i];
 	  exchange_dbl_copy_out(cd, rbuf, data, dim2, i);	  
 	} 

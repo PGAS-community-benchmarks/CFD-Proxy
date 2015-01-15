@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
   init_threads(&cd, &sd, NTHREADS);
 
   /* run solver */
-  test_solver(&cd, &sd);
+  test_solver(&cd, &sd, NTHREADS);
 
   /* free comm ressources */
   free_communication_ressources();

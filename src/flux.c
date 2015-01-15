@@ -114,6 +114,5 @@ void compute_psd_flux(solver_data *sd)
     {
       private_compute_psd_flux(color, sd);
     }
-#pragma omp barrier  
 }
 

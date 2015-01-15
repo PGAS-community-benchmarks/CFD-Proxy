@@ -679,6 +679,7 @@ RangeList* private_get_color_and_exchange(RangeList *const prev
 	       , final
 	       );
 	}
+
       /* wait for neighbour threads */      
       wait_for_local_neighbours();
 
