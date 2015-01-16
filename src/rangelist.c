@@ -222,6 +222,9 @@ void init_thread_neighbours(comm_data *cd
   int *tmp1 = check_malloc(nthreads * sizeof(int));
   int j, face;
 
+  ASSERT(cd != NULL);
+  ASSERT(sd != NULL);
+
   nngb_threads_local = 0;
   ngb_threads_local = NULL;
 
@@ -273,6 +276,9 @@ void init_thread_neighbours(comm_data *cd
           nngb++;
         }
     }
+
+  ASSERT(nngb != 0);
+
   /* set thread local neighbours */
   nngb_threads_local = nngb;
   ngb_threads_local = check_malloc(nngb * sizeof(int));  
@@ -420,7 +426,7 @@ void init_thread_rangelist(comm_data *cd
     }
 
   /* sort faces for type and p1/p0 */
-  sort_faces(pm, fpoint, ttype, sd, nfaces);
+  sort_faces(pm, fpoint, ttype, nfaces);
 
   /* fix face permutation */
   int     *tt     = check_malloc(nfaces * sizeof(int));
@@ -682,7 +688,7 @@ RangeList* private_get_color_and_exchange(RangeList *const prev
 
       /* wait for neighbour threads */      
       wait_for_local_neighbours();
-
+      
     }
 
   return color;

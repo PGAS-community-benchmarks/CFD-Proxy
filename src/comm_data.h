@@ -46,8 +46,8 @@ typedef struct
   gaspi_notification_id_t *notification;
 
   /* global stage counter */
-  volatile int *recv_flag;
-  volatile int *send_flag;
+  volatile counter_t *recv_flag;
+  volatile counter_t *send_flag;
   volatile int recv_stage;
   volatile int send_stage;
 

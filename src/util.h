@@ -13,7 +13,6 @@ void sort_median(double *begin, double *end);
 void sort_faces(int pm[]
 		, int fpoint[][2]
 		, int ttype[]
-		, solver_data *sd
 		, int nfaces
 		);
 

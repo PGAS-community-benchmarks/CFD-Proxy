@@ -125,7 +125,7 @@ void exchange_dbl_gaspi_write(comm_data *cd
 			 , GASPI_BLOCK
 			 ));
       /* inc send flag */
-      cd->send_flag[i]++;
+      cd->send_flag[i].global++;
 
     }
 
@@ -158,6 +158,7 @@ void exchange_dbl_gaspi_bulk_sync(comm_data *cd
   ASSERT(remote_recv_offset != NULL);
   ASSERT(local_recv_offset != NULL);
   ASSERT(local_send_offset != NULL);
+  ASSERT((final == 0 || final == 1));
 
   gaspi_number_t snum = 0; 
   SUCCESS_OR_DIE(gaspi_segment_num(&snum));
@@ -217,7 +218,7 @@ void exchange_dbl_gaspi_bulk_sync(comm_data *cd
 	  ASSERT(recvcount[k] > 0);	 
 
 	  // flag received buffer 
-	  cd->recv_flag[i]++;
+	  cd->recv_flag[i].global++;
 
 	  /* copy the data from the recvbuffer into out data field */
 	  int buffer_id = cd->recv_stage % 2;
@@ -262,6 +263,7 @@ void exchange_dbl_gaspi_async(comm_data *cd
 
   ASSERT(recvcount != NULL);
   ASSERT(local_recv_offset != NULL);
+  ASSERT((final == 0 || final == 1));
 
   gaspi_number_t snum = 0; 
   SUCCESS_OR_DIE(gaspi_segment_num(&snum));
@@ -315,7 +317,7 @@ void exchange_dbl_gaspi_async(comm_data *cd
 	  ASSERT(value != 0);
 	  
 	  // flag received buffer 
-	  cd->recv_flag[i]++;
+	  cd->recv_flag[i].global++;
 	}
 
       // inc stage counter
@@ -355,7 +357,7 @@ void exchange_dbl_gaspi_async(comm_data *cd
 	  ASSERT(recvcount[k] > 0);	 
 
 	  // flag received buffer 
-	  cd->recv_flag[id]++;
+	  cd->recv_flag[id].global++;
 
 	  /* copy the data from the recvbuffer into out data field */
 	  gaspi_pointer_t ptr;

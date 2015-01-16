@@ -122,7 +122,7 @@ void exchange_dbl_mpidma_write(comm_data *cd
 	      , MPI_CHAR // type at target
 	      , rcvwin // MPI DMA win to use
 	      );
-      cd->send_flag[i]++;
+      cd->send_flag[i].global++;
     }
 }
 
@@ -152,6 +152,7 @@ void exchange_dbl_mpifence_bulk_sync(comm_data *cd
     ASSERT(recvindex != NULL);
     ASSERT(remote_recv_offset != NULL);
     ASSERT(local_recv_offset != NULL);
+    ASSERT((final == 0 || final == 1));
 
     MPI_Win_fence(MPI_MODE_NOPRECEDE, rcvwin);
     for(i = 0; i < ncommdomains; i++)
@@ -168,7 +169,7 @@ void exchange_dbl_mpifence_bulk_sync(comm_data *cd
     for(i = 0; i < ncommdomains; i++)
       {
 	// flag received buffer 
-	cd->recv_flag[i]++;
+	cd->recv_flag[i].global++;
 
 	/* copy the data from the recvbuffer into out data field */
         int k = commpartner[i];
@@ -207,6 +208,7 @@ void exchange_dbl_mpifence_async(comm_data *cd
     ASSERT(recvcount != NULL);
     ASSERT(recvindex != NULL);
     ASSERT(local_recv_offset != NULL);
+    ASSERT((final == 0 || final == 1));
 
     MPI_Win_fence(MPI_MODE_NOSTORE , rcvwin); // make sure data has arrived AND start next round
 
@@ -214,7 +216,7 @@ void exchange_dbl_mpifence_async(comm_data *cd
     for (i = 0; i < ncommdomains; ++i)
       {
 	// flag received buffer 
-	cd->recv_flag[i]++;
+	cd->recv_flag[i].global++;
 
 	/* copy the data from the recvbuffer into out data field */
         int k = commpartner[i];
@@ -257,6 +259,8 @@ void exchange_dbl_mpipscw_bulk_sync(comm_data *cd
     ASSERT(recvindex != NULL);
     ASSERT(remote_recv_offset != NULL);
     ASSERT(local_recv_offset != NULL);
+    ASSERT((final == 0 || final == 1));
+  
 
     mpidma_async_post_start();
     for(i = 0; i < ncommdomains; i++)
@@ -274,7 +278,7 @@ void exchange_dbl_mpipscw_bulk_sync(comm_data *cd
     for(i = 0; i < ncommdomains; i++)
       {
 	// flag received buffer 
-	cd->recv_flag[i]++;
+	cd->recv_flag[i].global++;
 
 	/* copy the data from the recvbuffer into out data field */
         int k = commpartner[i];
@@ -317,6 +321,7 @@ void exchange_dbl_mpipscw_async(comm_data *cd
     ASSERT(recvcount != NULL);
     ASSERT(recvindex != NULL);
     ASSERT(local_recv_offset != NULL);
+    ASSERT((final == 0 || final == 1));
 
     mpidma_async_wait();
 
@@ -324,7 +329,7 @@ void exchange_dbl_mpipscw_async(comm_data *cd
     for (i = 0; i < ncommdomains; ++i)
       {
 	// flag received buffer 
-	cd->recv_flag[i]++;
+	cd->recv_flag[i].global++;
 
 #ifndef USE_PARALLEL_SCATTER
 	/* copy the data from the recvbuf into out data field */
@@ -344,7 +349,7 @@ void exchange_dbl_mpipscw_async(comm_data *cd
       if (nrecv > 0)
 	{
 	  volatile int flag;
-	  while ((flag = cd->recv_flag[i]) == cd->recv_stage)
+	  while ((flag = cd->recv_flag[i].global) == cd->recv_stage)
 	    {
 	      _mm_pause();
 	    }
@@ -403,7 +408,7 @@ void exchange_dbl_mpipscw_async(comm_data *cd
     for (i = 0; i < ncommdomains; ++i)
       {
 	// flag received buffer 
-	cd->recv_flag[i]++;
+	cd->recv_flag[i].global++;
 
 	/* copy the data from the recvbuffer into out data field */
         int k = commpartner[i];
