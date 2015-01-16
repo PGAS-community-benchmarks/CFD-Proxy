@@ -277,7 +277,10 @@ void init_thread_neighbours(comm_data *cd
         }
     }
 
-  ASSERT(nngb != 0);
+  if (nngb == 0)
+    {
+      return;
+    }
 
   /* set thread local neighbours */
   nngb_threads_local = nngb;
