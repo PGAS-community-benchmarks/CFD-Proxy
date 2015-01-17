@@ -178,10 +178,10 @@ static void global_msort(int *pm
 void sort_faces(int pm[]
 		, int fpoint[][2]
                 , int ttype[]
-                , solver_data *sd
 		, int nfaces
 		)
 {
+
   int *pm_tmp      = check_malloc(nfaces * sizeof(int));
   int *tp          = check_malloc(nfaces * sizeof(int));
   int *tp_tmp      = check_malloc(nfaces * sizeof(int));

@@ -124,6 +124,8 @@ void exchange_dbl_gaspi_write(comm_data *cd
 			 , queue_id
 			 , GASPI_BLOCK
 			 ));
+      /* inc send flag */
+      cd->send_flag[i].global++;
 
     }
 
@@ -133,6 +135,7 @@ void exchange_dbl_gaspi_write(comm_data *cd
 void exchange_dbl_gaspi_bulk_sync(comm_data *cd
 				  , double *data
 				  , int dim2
+				  , int final
 				  )
 {
   int ncommdomains  = cd->ncommdomains;
@@ -155,6 +158,7 @@ void exchange_dbl_gaspi_bulk_sync(comm_data *cd
   ASSERT(remote_recv_offset != NULL);
   ASSERT(local_recv_offset != NULL);
   ASSERT(local_send_offset != NULL);
+  ASSERT((final == 0 || final == 1));
 
   gaspi_number_t snum = 0; 
   SUCCESS_OR_DIE(gaspi_segment_num(&snum));
@@ -169,6 +173,7 @@ void exchange_dbl_gaspi_bulk_sync(comm_data *cd
 	  if (sendcount[k] > 0)
 	    {
 	      int buffer_id = cd->send_stage % 2;
+#if !defined(USE_PACK_IN_BULK_SYNC) && !defined(USE_PARALLEL_GATHER)
 	      gaspi_pointer_t ptr;
 	      SUCCESS_OR_DIE(gaspi_segment_ptr(buffer_id, &ptr));		  
 	      double *sbuf = (double *) (ptr + local_send_offset[k]);		  
@@ -178,11 +183,12 @@ void exchange_dbl_gaspi_bulk_sync(comm_data *cd
 				   , dim2
 				   , i
 				   );
+#endif
 	      exchange_dbl_gaspi_write(cd, data, dim2, buffer_id, i);
 	    }
 	}
 
-      /* wait for notify */
+      /* wait for all notify */
       for(i = 0; i < ncommdomains; i++)
 	{ 
 	  int k = commpartner[i];
@@ -206,12 +212,15 @@ void exchange_dbl_gaspi_bulk_sync(comm_data *cd
 	    }
 	}
 
-      /* copy the data from the recvbuffer into out data field */
       for(i = 0; i < ncommdomains; i++)
 	{
 	  int k = commpartner[i];
 	  ASSERT(recvcount[k] > 0);	 
 
+	  // flag received buffer 
+	  cd->recv_flag[i].global++;
+
+	  /* copy the data from the recvbuffer into out data field */
 	  int buffer_id = cd->recv_stage % 2;
 	  gaspi_pointer_t ptr;
 	  SUCCESS_OR_DIE(gaspi_segment_ptr(2+buffer_id, &ptr));		  
@@ -224,16 +233,14 @@ void exchange_dbl_gaspi_bulk_sync(comm_data *cd
 				);
 	}
   
-      for(i = 0; i < ncommdomains; i++)
-	{
-	  cd->send_flag[i]++;
-	  cd->recv_flag[i]++;
-	}
       // inc stage counter
       cd->send_stage++;
       cd->recv_stage++;
 
     }
+
+/* wait for recv/unpack */
+#pragma omp barrier
 
 }
 
@@ -241,6 +248,7 @@ void exchange_dbl_gaspi_bulk_sync(comm_data *cd
 void exchange_dbl_gaspi_async(comm_data *cd
 			      , double *data
 			      , int dim2
+			      , int final
 			      )
 {
 
@@ -255,6 +263,7 @@ void exchange_dbl_gaspi_async(comm_data *cd
 
   ASSERT(recvcount != NULL);
   ASSERT(local_recv_offset != NULL);
+  ASSERT((final == 0 || final == 1));
 
   gaspi_number_t snum = 0; 
   SUCCESS_OR_DIE(gaspi_segment_num(&snum));
@@ -262,7 +271,7 @@ void exchange_dbl_gaspi_async(comm_data *cd
 
   int i;
 
-#ifdef USE_GASPI_PARALLEL_SCATTER
+#ifdef USE_PARALLEL_SCATTER
 
   for (i = 0; i < ncommdomains; ++i)
     {
@@ -292,7 +301,6 @@ void exchange_dbl_gaspi_async(comm_data *cd
 	}
     }
 
-
   if (this_is_the_last_thread())
     {
       for (i = 0; i < ncommdomains; ++i)
@@ -307,12 +315,9 @@ void exchange_dbl_gaspi_async(comm_data *cd
 					      , &value
 					      ));
 	  ASSERT(value != 0);
-	}
-
-      for(i = 0; i < ncommdomains; i++)
-	{
-	  cd->send_flag[i]++;
-	  cd->recv_flag[i]++;
+	  
+	  // flag received buffer 
+	  cd->recv_flag[i].global++;
 	}
 
       // inc stage counter
@@ -321,7 +326,8 @@ void exchange_dbl_gaspi_async(comm_data *cd
 
     }
 
-
+/* no barrier -- in parallel scatter all threads unpack 
+   the specifically required parts of recv */   
 
 #else
 
@@ -350,6 +356,9 @@ void exchange_dbl_gaspi_async(comm_data *cd
 	  int k = commpartner[id];	  
 	  ASSERT(recvcount[k] > 0);	 
 
+	  // flag received buffer 
+	  cd->recv_flag[id].global++;
+
 	  /* copy the data from the recvbuffer into out data field */
 	  gaspi_pointer_t ptr;
 	  SUCCESS_OR_DIE(gaspi_segment_ptr(2+buffer_id, &ptr));		  
@@ -365,15 +374,13 @@ void exchange_dbl_gaspi_async(comm_data *cd
   
   if (this_is_the_last_thread())
     {
-      for(i = 0; i < ncommdomains; i++)
-	{
-	  cd->send_flag[i]++;
-	  cd->recv_flag[i]++;
-	}
       // inc stage counter
       cd->send_stage++;
       cd->recv_stage++;
     }
+
+/* wait for recv/unpack */
+#pragma omp barrier
 
 #endif
 

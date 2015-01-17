@@ -20,6 +20,7 @@
 #include "solver.h"
 #include "util.h"
 
+#include "flux.h"
 #include "gradients.h"
 #include "rangelist.h"
 #include "exchange_data_mpi.h"
@@ -28,10 +29,10 @@
 #include "exchange_data_gaspi.h"
 #endif
 
-#define N_MEDIAN 25
+#define N_MEDIAN 20
 #define N_SOLVER 10
 
-void test_solver(comm_data *cd, solver_data *sd)
+void test_solver(comm_data *cd, solver_data *sd, int NTHREADS)
 {
   int k;
   double time, median[N_SOLVER][N_MEDIAN];
@@ -46,7 +47,10 @@ void test_solver(comm_data *cd, solver_data *sd)
 	int i;
 	for (i = 0; i < sd->niter; ++i)
 	  {
-	    compute_gradients_gg_comm_free(sd);
+	    int final = (i == sd->niter-1) ? 1 : 0;
+	    compute_gradients_gg_comm_free(cd, sd, final);
+	    compute_psd_flux(sd);
+#pragma omp barrier  
 	  }
       }
       MPI_Barrier(MPI_COMM_WORLD);
@@ -61,13 +65,15 @@ void test_solver(comm_data *cd, solver_data *sd)
 	int i;
 	for (i = 0; i < sd->niter; ++i)
 	  {
-	    compute_gradients_gg_mpi_bulk_sync(cd, sd);
+	    int final = (i == sd->niter-1) ? 1 : 0;
+	    compute_gradients_gg_mpi_bulk_sync(cd, sd, final);
+	    compute_psd_flux(sd);
+#pragma omp barrier  
 	  }
       }
       MPI_Barrier(MPI_COMM_WORLD);
       time += now();
       median[1][k] = time;
-
 
       /* MPI bulk sync, early recv */
       time = -now();
@@ -80,6 +86,8 @@ void test_solver(comm_data *cd, solver_data *sd)
 	  {
 	    int final = (i == sd->niter-1) ? 1 : 0;
 	    compute_gradients_gg_mpi_early_recv(cd, sd, final);
+	    compute_psd_flux(sd);
+#pragma omp barrier  
 	  }
       }
       MPI_Barrier(MPI_COMM_WORLD);
@@ -97,6 +105,8 @@ void test_solver(comm_data *cd, solver_data *sd)
 	  {
 	    int final = (i == sd->niter-1) ? 1 : 0;
 	    compute_gradients_gg_mpi_async(cd, sd, final);
+	    compute_psd_flux(sd);
+#pragma omp barrier  
 	  }  
       }
       MPI_Barrier(MPI_COMM_WORLD);
@@ -112,7 +122,10 @@ void test_solver(comm_data *cd, solver_data *sd)
 	int i;
 	for (i = 0; i < sd->niter; ++i)
 	  {
-	    compute_gradients_gg_gaspi_bulk_sync(cd, sd);  
+	    int final = (i == sd->niter-1) ? 1 : 0;
+	    compute_gradients_gg_gaspi_bulk_sync(cd, sd, final);  
+	    compute_psd_flux(sd);
+#pragma omp barrier  
 	  }
       }
       MPI_Barrier(MPI_COMM_WORLD);
@@ -127,7 +140,10 @@ void test_solver(comm_data *cd, solver_data *sd)
 	int i;
 	for (i = 0; i < sd->niter; ++i)
 	  {
-	    compute_gradients_gg_gaspi_async(cd, sd);
+	    int final = (i == sd->niter-1) ? 1 : 0;
+	    compute_gradients_gg_gaspi_async(cd, sd, final);
+	    compute_psd_flux(sd);
+#pragma omp barrier  
 	  }  
       }
       MPI_Barrier(MPI_COMM_WORLD);
@@ -144,7 +160,10 @@ void test_solver(comm_data *cd, solver_data *sd)
 	int i;
 	for (i = 0; i < sd->niter; ++i)
 	  {
-	    compute_gradients_gg_mpifence_bulk_sync(cd, sd);
+	    int final = (i == sd->niter-1) ? 1 : 0;
+	    compute_gradients_gg_mpifence_bulk_sync(cd, sd, final);
+	    compute_psd_flux(sd);
+#pragma omp barrier  
 	  }
       }
       MPI_Barrier(MPI_COMM_WORLD);
@@ -160,7 +179,10 @@ void test_solver(comm_data *cd, solver_data *sd)
 	int i;
 	for (i = 0; i < sd->niter; ++i)
 	  {
-	    compute_gradients_gg_mpifence_async(cd, sd);
+	    int final = (i == sd->niter-1) ? 1 : 0;
+	    compute_gradients_gg_mpifence_async(cd, sd, final);
+	    compute_psd_flux(sd);
+#pragma omp barrier  
 	  }
       }
       MPI_Barrier(MPI_COMM_WORLD);
@@ -175,7 +197,10 @@ void test_solver(comm_data *cd, solver_data *sd)
 	int i;
 	for (i = 0; i < sd->niter; ++i)
 	  {
-	    compute_gradients_gg_mpipscw_bulk_sync(cd, sd);
+	    int final = (i == sd->niter-1) ? 1 : 0;
+	    compute_gradients_gg_mpipscw_bulk_sync(cd, sd, final);
+	    compute_psd_flux(sd);
+#pragma omp barrier  
 	  }
       }
       MPI_Barrier(MPI_COMM_WORLD);
@@ -193,57 +218,63 @@ void test_solver(comm_data *cd, solver_data *sd)
 	  {
 	    int final = (i == sd->niter-1) ? 1 : 0;
 	    compute_gradients_gg_mpipscw_async(cd, sd, final);
+	    compute_psd_flux(sd);
+#pragma omp barrier  
 	  }
       }
       MPI_Barrier(MPI_COMM_WORLD);
       time += now();
       median[9][k] = time;
 
-      if (cd->iProc == 0)
-	{
-	  printf(".");
-	  fflush(stdout);
-	}
     }
 
   if (cd->iProc == 0)
     {
+
+      printf("\n*** COMPILE FLAGS\n");
+#ifdef USE_MPI_MULTI_THREADED
+      printf(" -DUSE_MPI_MULTI_THREADED");
+#endif
+#ifdef USE_MPI_WAIT_ANY
+      printf(" -DUSE_MPI_WAIT_ANY");
+#endif
+#ifdef USE_PSCW_EARLY_WAIT
+      printf(" -DUSE_PSCW_EARLY_WAIT");
+#endif
+#ifdef USE_MPI_TEST
+      printf(" -DUSE_MPI_TEST");
+#endif
+#ifdef USE_PACK_IN_BULK_SYNC
+      printf(" -DUSE_PACK_IN_BULK_SYNC");
+#endif
+#ifdef USE_PARALLEL_GATHER
+      printf(" -DUSE_PARALLEL_GATHER");
+#endif
+#ifdef USE_PARALLEL_SCATTER
+      printf(" -DUSE_PARALLEL_SCATTER");
+#endif
+
+      printf("\n\n*** SETUP\n");
+      printf("                                 nProc: %d\n",cd->nProc);
+      printf("                              NTHREADS: %d\n",NTHREADS);
+
       for (k = 0; k < N_SOLVER; ++k)
 	{ 
 	  sort_median(&median[k][0], &median[k][N_MEDIAN-1]);
 	}
-
-      printf(" done\n");
+      printf("\n*** TIMINGS\n");
       printf("                             comm_free: %10.6f\n",median[0][N_MEDIAN/2]);
       printf("            exchange_dbl_mpi_bulk_sync: %10.6f\n",median[1][N_MEDIAN/2]);
       printf("           exchange_dbl_mpi_early_recv: %10.6f\n",median[2][N_MEDIAN/2]);
-
-#ifdef USE_MPI_MULTI_THREADED
-      printf("          exchange_dbl_mpi_async_multi: %10.6f\n",median[3][N_MEDIAN/2]);
-#else
-      printf("     exchange_dbl_mpi_async_serialized: %10.6f\n",median[3][N_MEDIAN/2]);
-#endif
-
+      printf("                exchange_dbl_mpi_async: %10.6f\n",median[3][N_MEDIAN/2]);
 #ifdef USE_GASPI
       printf("          exchange_dbl_gaspi_bulk_sync: %10.6f\n",median[4][N_MEDIAN/2]);
       printf("              exchange_dbl_gaspi_async: %10.6f\n",median[5][N_MEDIAN/2]);
 #endif
-
-      printf("       exchange_dbl_mpifence_bulk_sync: %10.6f\n",median[6][N_MEDIAN/2]);
-
-#ifdef USE_MPI_MULTI_THREADED
-      printf("     exchange_dbl_mpifence_async_multi: %10.6f\n",median[7][N_MEDIAN/2]);
-#else
-      printf("exchange_dbl_mpifence_async_serialized: %10.6f\n",median[7][N_MEDIAN/2]);
-#endif
-
-      printf("        exchange_dbl_mpipscw_bulk_sync: %10.6f\n",median[8][N_MEDIAN/2]);
-
-#ifdef USE_MPI_MULTI_THREADED
-      printf("      exchange_dbl_mpipscw_async_multi: %10.6f\n",median[9][N_MEDIAN/2]);
-#else
-      printf(" exchange_dbl_mpipscw_async_serialized: %10.6f\n",median[9][N_MEDIAN/2]);
-#endif
+      printf("      exchange_dbl_mpi_fence_bulk_sync: %10.6f\n",median[6][N_MEDIAN/2]);
+      printf("          exchange_dbl_mpi_fence_async: %10.6f\n",median[7][N_MEDIAN/2]);
+      printf("       exchange_dbl_mpi_pscw_bulk_sync: %10.6f\n",median[8][N_MEDIAN/2]);
+      printf("           exchange_dbl_mpi_pscw_async: %10.6f\n",median[9][N_MEDIAN/2]);
 
     }
 }

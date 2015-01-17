@@ -7,35 +7,31 @@
 #include <omp.h>
 #include <stdbool.h>
 
+
+#include "threads.h"
 #include "comm_data.h"
 #include "solver_data.h"
 #include "error_handling.h"
 
-
-void init_rangelist(RangeList *fcolor);
 
 void init_threads(comm_data *cd
 		  , solver_data *sd
 		  , int NTHREADS
 		  );
 
-void initiate_thread_comm_mpi(RangeList *color
-			      , comm_data *cd
-			      , double *data
-			      , int dim2
-			      );
+void init_rangelist(RangeList *fcolor);
 
-void initiate_thread_comm_gaspi(RangeList *color
-				, comm_data *cd
-				, double *data
-				, int dim2
-				);
+
+void init_thread_neighbours(comm_data *cd
+			    , solver_data *sd
+			    , int tid
+			    , int *pid
+			    );
+
+void init_comp_stage_global(int nthreads);
+
+
  
-void init_thread_comm(comm_data *cd
-		      , solver_data *sd
-		      );
-
-
 void init_thread_rangelist(comm_data *cd
 			   , solver_data *sd
 			   , int tid
@@ -43,20 +39,20 @@ void init_thread_rangelist(comm_data *cd
 			   , int *htype
 			   );
 
-void init_thread_meta_data(int *pid
-			   , int *htype
-			   , comm_data *cd
-			   , solver_data *sd
-			   , int NTHREADS
-			   );
+void init_halo_type(int *htype
+		    , comm_data *cd
+		    , solver_data *sd
+		    );
 
-void eval_thread_comm(comm_data *cd);
+void init_meta_data(int *pid
+		    , int NTHREADS
+		    , solver_data *sd
+		    );
 
-void eval_thread_rangelist(solver_data *sd);
 
-solver_data_local* get_solver_data(void);
+int get_ncolors_local(void);
 
-int get_ncolors(void);
+solver_data_local* get_solver_local(void);
 
 RangeList* private_get_color(RangeList *const prev);
 
@@ -68,6 +64,52 @@ static inline RangeList* get_color(void)
 static inline RangeList* get_next_color(RangeList *const prev)
 {
   return private_get_color(prev);
+}
+
+RangeList* private_get_color_and_exchange(RangeList *const prev
+					  , send_fn send
+					  , exch_fn exch
+					  , comm_data *cd
+					  , double *data
+					  , int dim2
+					  , int final
+					  );
+
+static inline RangeList* get_color_and_exchange(send_fn send
+						, exch_fn exch
+						, comm_data *cd
+						, double *data
+						, int dim2
+						, int final				   
+						)
+{
+  return private_get_color_and_exchange(NULL
+					, send
+					, exch
+					, cd
+					, data
+					, dim2
+					, final
+					);
+}
+
+static inline RangeList* get_next_color_and_exchange(RangeList *const prev
+						     , send_fn send
+						     , exch_fn exch
+						     , comm_data *cd
+						     , double *data
+						     , int dim2
+						     , int final
+						     )
+{
+  return private_get_color_and_exchange(prev
+					, send
+					, exch
+					, cd
+					, data
+					, dim2
+					, final
+					);
 }
 
 

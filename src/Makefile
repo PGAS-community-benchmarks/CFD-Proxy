@@ -2,15 +2,16 @@
 #NETCDF_DIR = $(HOME)/netcdf-4.2.1.1.mic
 #MPI_DIR=/export/opt/intel2015/impi/5.0.1.035/mic
 #CC = $(MPI_DIR)/bin/mpiicc
-#GPI2_DIR = $(HOME)/GPI2-1.1.1_intel-5.0.1.035
-#NETCDF_DIR = $(HOME)/netcdf-4.2.1.1
-#MPI_DIR=/export/opt/intel2015/impi/5.0.1.035
-#CC = $(MPI_DIR)/bin64/mpicc
 
-GPI2_DIR = $(HOME)/GPI2-1.1.0_openmpi-1.6.5
+#GPI2_DIR = $(HOME)/GPI2-1.1.1_intel-4.1.0
+#NETCDF_DIR = $(HOME)/netcdf-4.2.1.1.mic
+#MPI_DIR=/export/opt/intel2013/impi/4.1.0.024/mic
+#CC = $(MPI_DIR)/bin/mpiicc
+
+GPI2_DIR = $(HOME)/GPI2-1.1.1_intel-5.0.1.035
 NETCDF_DIR = $(HOME)/netcdf-4.2.1.1
-MPI_DIR =  $(HOME)/openmpi-1.6.5-thread-multiple
-CC = $(MPI_DIR)/bin/mpicc
+MPI_DIR=/export/opt/intel2015/impi/5.0.1.035
+CC = $(MPI_DIR)/bin64/mpicc
 
 BIN += hybrid.f6.exe
 
@@ -21,30 +22,31 @@ CFLAGS += -Wshadow
 CFLAGS += -O2 -g 
 CFLAGS += -std=c99
 CFLAGS += -fopenmp
-CFLAGS += -DDEBUG 
+#CFLAGS += -openmp
+#CFLAGS += -DDEBUG 
+
 CFLAGS += -DGCC_EXTENSION
 CFLAGS += -DUSE_NTHREADS=12
-CFLAGS += -DUSE_MPI_MULTI_THREADED
+#CFLAGS += -DUSE_MPI_MULTI_THREADED
 CFLAGS += -DUSE_GASPI
 CFLAGS += -DUSE_MPI_WAIT_ANY
 CFLAGS += -DUSE_PSCW_EARLY_WAIT
-CFLAGS += -DUSE_MPI_PARALLEL_GATHER
-CFLAGS += -DUSE_MPI_PARALLEL_SCATTER
-CFLAGS += -DUSE_GASPI_PARALLEL_GATHER
-CFLAGS += -DUSE_GASPI_PARALLEL_SCATTER
+#CFLAGS += -DUSE_MPI_TEST
+#CFLAGS += -DUSE_PACK_IN_BULK_SYNC
+#CFLAGS += -DUSE_PARALLEL_GATHER
+#CFLAGS += -DUSE_PARALLEL_SCATTER
 
 ###############################################################################
 
 INCLUDE_DIR += $(NETCDF_DIR)/include 
-INCLUDE_DIR += $(MPI_DIR)/include 
+INCLUDE_DIR += $(MPI_DIR)/include64 
 INCLUDE_DIR += $(GPI2_DIR)/include 
 INCLUDE_DIR += ..
 
 LIBRARY_DIR += $(NETCDF_DIR)/lib
-LIBRARY_DIR += $(MPI_DIR)/lib/intel64
+LIBRARY_DIR += $(MPI_DIR)/lib
 #LIBRARY_DIR += $(GPI2_DIR)/lib64/mic
 LIBRARY_DIR += $(GPI2_DIR)/lib64
-
 
 LDFLAGS += $(addprefix -L,$(LIBRARY_DIR))
 CFLAGS += $(addprefix -I,$(INCLUDE_DIR))
@@ -58,8 +60,12 @@ OBJ += exchange_data_mpi
 OBJ += exchange_data_gaspi
 OBJ += exchange_data_mpidma
 OBJ += gradients
+OBJ += flux
 OBJ += rangelist
 OBJ += threads
+OBJ += eval
+OBJ += thread_comm
+OBJ += points_of_color
 OBJ += waitsome
 OBJ += queue
 OBJ += util
@@ -67,8 +73,8 @@ OBJ += util
 LIB += GPI2
 LIB += ibverbs
 #LIB += mpich
-#LIB += mpi_mt
-LIB += mpi
+LIB += mpi_mt
+#LIB += mpi
 LIB += netcdf
 LIB += m
 

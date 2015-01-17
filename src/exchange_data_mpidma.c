@@ -122,6 +122,7 @@ void exchange_dbl_mpidma_write(comm_data *cd
 	      , MPI_CHAR // type at target
 	      , rcvwin // MPI DMA win to use
 	      );
+      cd->send_flag[i].global++;
     }
 }
 
@@ -129,6 +130,7 @@ void exchange_dbl_mpidma_write(comm_data *cd
 void exchange_dbl_mpifence_bulk_sync(comm_data *cd
 				     , double *data
 				     , int dim2
+				     , int final
 				     )
 {
   /* wait for completed computation before send */
@@ -150,33 +152,37 @@ void exchange_dbl_mpifence_bulk_sync(comm_data *cd
     ASSERT(recvindex != NULL);
     ASSERT(remote_recv_offset != NULL);
     ASSERT(local_recv_offset != NULL);
+    ASSERT((final == 0 || final == 1));
 
     MPI_Win_fence(MPI_MODE_NOPRECEDE, rcvwin);
     for(i = 0; i < ncommdomains; i++)
       {
+#if !defined(USE_PACK_IN_BULK_SYNC) && !defined(USE_PARALLEL_GATHER)
 	int k = cd->commpartner[i];
 	double *const sbuf = (double *) (sndbuf + cd->local_send_offset[k]);
 	exchange_dbl_copy_in(cd, sbuf, data, dim2, i);
+#endif
         exchange_dbl_mpidma_write(cd, data, dim2, i);
       }
     MPI_Win_fence(MPI_MODE_NOSUCCEED | MPI_MODE_NOSTORE , rcvwin); // make sure data has arrived
 
-    /* copy the data from the recvbuffer into out data field */
     for(i = 0; i < ncommdomains; i++)
       {
+	// flag received buffer 
+	cd->recv_flag[i].global++;
+
+	/* copy the data from the recvbuffer into out data field */
         int k = commpartner[i];
 	double *rbuf = (double *) (rcvbuf + local_recv_offset[k]);
 	exchange_dbl_copy_out(cd, rbuf, data, dim2, i);
-      }
-    for(i = 0; i < ncommdomains; i++)
-      {
-	cd->send_flag[i]++;
-	cd->recv_flag[i]++;
       }
     
     cd->send_stage++;
     cd->recv_stage++;
   }
+
+/* wait for recv/unpack */
+#pragma omp barrier
 
 }
 
@@ -185,6 +191,7 @@ void exchange_dbl_mpifence_bulk_sync(comm_data *cd
 void exchange_dbl_mpifence_async(comm_data *cd
 				 , double *data
 				 , int dim2
+				 , int final
 				 )
 {
   if (this_is_the_last_thread())
@@ -201,34 +208,36 @@ void exchange_dbl_mpifence_async(comm_data *cd
     ASSERT(recvcount != NULL);
     ASSERT(recvindex != NULL);
     ASSERT(local_recv_offset != NULL);
+    ASSERT((final == 0 || final == 1));
 
     MPI_Win_fence(MPI_MODE_NOSTORE , rcvwin); // make sure data has arrived AND start next round
 
     int i;
-    /* copy the data from the recvbuffer into out data field */
     for (i = 0; i < ncommdomains; ++i)
       {
+	// flag received buffer 
+	cd->recv_flag[i].global++;
+
+	/* copy the data from the recvbuffer into out data field */
         int k = commpartner[i];
 	double *rbuf = (double *) (rcvbuf + local_recv_offset[k]);
 	exchange_dbl_copy_out(cd, rbuf, data, dim2, i);
       }
 
-    for(i = 0; i < ncommdomains; i++)
-      {
-	cd->send_flag[i]++;
-	cd->recv_flag[i]++;
-      }
-    
     // inc stage counter
     cd->send_stage++;
     cd->recv_stage++;
   }
+
+/* wait for recv/unpack */
+#pragma omp barrier
 
 }
 
 void exchange_dbl_mpipscw_bulk_sync(comm_data *cd
 				    , double *data
 				    , int dim2
+				    , int final
 				    )
 {
   /* wait for completed computation before send */
@@ -250,37 +259,40 @@ void exchange_dbl_mpipscw_bulk_sync(comm_data *cd
     ASSERT(recvindex != NULL);
     ASSERT(remote_recv_offset != NULL);
     ASSERT(local_recv_offset != NULL);
+    ASSERT((final == 0 || final == 1));
+  
 
     mpidma_async_post_start();
     for(i = 0; i < ncommdomains; i++)
       {
+#if !defined(USE_PACK_IN_BULK_SYNC) && !defined(USE_PARALLEL_GATHER)
 	int k = cd->commpartner[i];
 	double *const sbuf = (double *) (sndbuf + cd->local_send_offset[k]);
 	exchange_dbl_copy_in(cd, sbuf, data, dim2, i);
+#endif
         exchange_dbl_mpidma_write(cd, data, dim2, i);
       }
     mpidma_async_complete();
     mpidma_async_wait();
 
-    /* copy the data from the recvbuffer into out data field */
     for(i = 0; i < ncommdomains; i++)
       {
+	// flag received buffer 
+	cd->recv_flag[i].global++;
+
+	/* copy the data from the recvbuffer into out data field */
         int k = commpartner[i];
 	double *rbuf = (double *) (rcvbuf + local_recv_offset[k]);
 	exchange_dbl_copy_out(cd, rbuf, data, dim2, i);
       }
 
-    for(i = 0; i < ncommdomains; i++)
-      {
-	cd->send_flag[i]++;
-	cd->recv_flag[i]++;
-      }
-    
     // inc stage counter
     cd->send_stage++;
     cd->recv_stage++;
   }
 
+/* wait for recv/unpack */
+#pragma omp barrier
 
 }
 
@@ -299,38 +311,65 @@ void exchange_dbl_mpipscw_async(comm_data *cd
   int *commpartner  = cd->commpartner;
   int *recvcount    = cd->recvcount;
   int **recvindex   = cd->recvindex;
+  gaspi_offset_t *local_recv_offset = cd->local_recv_offset;
 
   if (this_is_the_first_thread())
   {
-    gaspi_offset_t *local_recv_offset = cd->local_recv_offset;
 
     ASSERT(dim2 > 0);
     ASSERT(ncommdomains != 0);
     ASSERT(recvcount != NULL);
     ASSERT(recvindex != NULL);
     ASSERT(local_recv_offset != NULL);
+    ASSERT((final == 0 || final == 1));
 
     mpidma_async_wait();
 
     int i;
-    /* copy the data from the recvbuffer into out data field */
     for (i = 0; i < ncommdomains; ++i)
       {
+	// flag received buffer 
+	cd->recv_flag[i].global++;
+
+#ifndef USE_PARALLEL_SCATTER
+	/* copy the data from the recvbuf into out data field */
         int k = commpartner[i];
 	double *rbuf = (double *) (rcvbuf + local_recv_offset[k]);
 	exchange_dbl_copy_out(cd, rbuf, data, dim2, i);
+#endif
+
       }
   }
 
+#ifdef USE_PARALLEL_SCATTER
+  int i;
+  for (i = 0; i < ncommdomains; ++i)
+    {
+      int nrecv = get_recvcount_local(i);
+      if (nrecv > 0)
+	{
+	  volatile int flag;
+	  while ((flag = cd->recv_flag[i].global) == cd->recv_stage)
+	    {
+	      _mm_pause();
+	    }
+	  /* sanity check */
+	  ASSERT(flag == (cd->recv_stage + 1));
+
+	  /* copy the data from the recvbuf into out data field */
+	  int k = commpartner[i];
+	  double *rbuf = (double *) (rcvbuf + local_recv_offset[k]);		  
+	  exchange_dbl_copy_out_local(rbuf
+				      , data
+				      , dim2
+				      , i
+				      );
+      } 
+  }
+#endif
+
   if (this_is_the_last_thread())
   {
-    int i;
-    for(i = 0; i < ncommdomains; i++)
-      {
-	cd->send_flag[i]++;
-	cd->recv_flag[i]++;
-      }
-    
     // inc stage counter
     cd->send_stage++;
     cd->recv_stage++;
@@ -341,6 +380,9 @@ void exchange_dbl_mpipscw_async(comm_data *cd
 	mpidma_async_post_start();
       }
   }
+
+/* wait for recv/unpack */
+#pragma omp barrier
 
 #else
 
@@ -363,20 +405,17 @@ void exchange_dbl_mpipscw_async(comm_data *cd
     mpidma_async_wait();
 
     int i;
-    /* copy the data from the recvbuffer into out data field */
     for (i = 0; i < ncommdomains; ++i)
       {
+	// flag received buffer 
+	cd->recv_flag[i].global++;
+
+	/* copy the data from the recvbuffer into out data field */
         int k = commpartner[i];
 	double *rbuf = (double *) (rcvbuf + local_recv_offset[k]);
 	exchange_dbl_copy_out(cd, rbuf, data, dim2, i);
       }
 
-    for(i = 0; i < ncommdomains; i++)
-      {
-	cd->send_flag[i]++;
-	cd->recv_flag[i]++;
-      }
-    
     // inc stage counter
     cd->send_stage++;
     cd->recv_stage++;
@@ -387,6 +426,9 @@ void exchange_dbl_mpipscw_async(comm_data *cd
 	mpidma_async_post_start();
       }
   }
+
+/* wait for recv/unpack */
+#pragma omp barrier
 
 #endif
 

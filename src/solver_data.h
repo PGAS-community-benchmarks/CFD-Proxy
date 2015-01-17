@@ -7,6 +7,7 @@
 #include <omp.h>
 
 #define NGRAD 7
+#define NFLUX 3
 
 typedef struct 
 {
@@ -74,6 +75,7 @@ typedef struct
   double  *pvolume;
   double  (*var)[NGRAD];
   double  (*grad)[NGRAD][3];
+  double  (*psd_flux)[NFLUX];
   RangeList *fcolor;
   int     niter;
 } solver_data ;

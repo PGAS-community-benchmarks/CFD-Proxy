@@ -132,19 +132,19 @@ static void create_recvsend_index(comm_data *cd)
     {
       int k = cd->commpartner[i];
       int j;
-      cd->sendindex[k] 
-	= check_malloc(cd->sendcount[k] * sizeof(int));
-      for(j = 0; j < cd->sendcount[k]; j++)
+      if(cd->sendcount[k] > 0)
 	{
-	  cd->sendindex[k][j] = -1;
+	  cd->sendindex[k] = check_malloc(cd->sendcount[k] * sizeof(int));
+	  for(j = 0; j < cd->sendcount[k]; j++)
+	    {
+	      cd->sendindex[k][j] = -1;
+	    }
 	}
 
       if(cd->recvcount[k] > 0)
 	{
 	  int count = 0;
-	  cd->recvindex[k] 
-	    = check_malloc(cd->recvcount[k] * sizeof(int));
-
+	  cd->recvindex[k] = check_malloc(cd->recvcount[k] * sizeof(int));
 	  for(j = 0; j < nadd; j++)
 	    {
 	      if(cd->addpoint_owner[j] == k)
