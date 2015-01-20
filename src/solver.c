@@ -256,8 +256,8 @@ void test_solver(comm_data *cd, solver_data *sd, int NTHREADS)
 #ifdef USE_PARALLEL_SCATTER
       printf(" -DUSE_PARALLEL_SCATTER");
 #endif
-#ifdef USE_GASPI_TESTSOME
-      printf(" -DUSE_GASPI_TESTSOME");
+#ifdef USE_GASPI_TEST
+      printf(" -DUSE_GASPI_TEST");
 #endif
 
       printf("\n\n*** SETUP\n");
