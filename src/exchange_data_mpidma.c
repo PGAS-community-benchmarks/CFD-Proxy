@@ -405,7 +405,7 @@ void exchange_dbl_mpipscw_async(comm_data *cd
   int i;
 
 #if defined(USE_PSCW_EARLY_WAIT)
-#ifndef USE_PSCW_EARLY_WAIT
+#ifndef USE_MPI_MULTI_THREADED
 #error PSCW_EARLY_WAIT requires MPI_MULTI_THREADED
 #endif 
   if (this_is_the_first_thread())
