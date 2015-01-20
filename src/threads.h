@@ -29,7 +29,9 @@ int inc_send_counter_global(int i, int val);
 int inc_send_counter_local(int i, int val);
 
 /* getter functions for thread local send/recv counts  */
+int get_nsendcount_local(void);
 int get_sendcount_local(int i);
+int get_nrecvcount_local(void);
 int get_recvcount_local(int i);
 
 

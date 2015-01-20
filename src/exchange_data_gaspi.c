@@ -27,6 +27,11 @@
 
 #include "error_handling.h"
 
+#ifdef USE_GASPI_TEST
+int *testsome_local = NULL;
+#pragma omp threadprivate(testsome_local)
+#endif
+
 void init_gaspi_segments(comm_data *cd
 			 , int dim2
 			 )
@@ -77,6 +82,17 @@ void init_gaspi_segments(comm_data *cd
 #ifdef DEBUG
   printf("GASPI segment creation complete.\n");
   fflush(stdout);
+#endif
+
+
+#ifdef USE_GASPI_TEST
+#pragma omp parallel default (none) shared(cd)
+  {
+    if (testsome_local == NULL)
+      {
+	testsome_local = check_malloc(cd->ncommdomains * sizeof(int));
+      }
+  }
 #endif
 
 }
@@ -131,6 +147,42 @@ void exchange_dbl_gaspi_write(comm_data *cd
 
 }
 
+static void exchange_dbl_gaspi_scatter(comm_data *cd
+				       , double *data
+				       , int dim2
+				       )
+{
+  int ncommdomains  = cd->ncommdomains;
+  int *commpartner  = cd->commpartner;
+  int *recvcount    = cd->recvcount;
+  gaspi_offset_t *local_recv_offset = cd->local_recv_offset;
+
+  int i;
+  for (i = 0; i < ncommdomains; ++i)
+    {
+      int nrecv = get_recvcount_local(i);
+      if (nrecv > 0)
+	{
+	  volatile int flag;
+	  while ((flag = cd->recv_flag[i].global) == cd->recv_stage)
+	    {
+	      _mm_pause();
+	    }
+	  /* sanity check */
+	  ASSERT(flag == (cd->recv_stage + 1));
+
+	  int k = commpartner[i];
+	  ASSERT(recvcount[k] > 0);	 
+
+	  /* copy the data from the recvbuf into out data field */
+	  int buffer_id = cd->recv_stage % 2;	  
+	  gaspi_pointer_t ptr;
+	  SUCCESS_OR_DIE(gaspi_segment_ptr(2+buffer_id, &ptr));		  
+	  double *rbuf = (double *) (ptr + local_recv_offset[k]);		  
+	  exchange_dbl_copy_out_local(rbuf, data, dim2, i);	  
+	} 
+    }
+}
 
 void exchange_dbl_gaspi_bulk_sync(comm_data *cd
 				  , double *data
@@ -191,37 +243,29 @@ void exchange_dbl_gaspi_bulk_sync(comm_data *cd
       /* wait for all notify */
       for(i = 0; i < ncommdomains; i++)
 	{ 
-	  int k = commpartner[i];
-	  if(recvcount[k] > 0)
-	    {
-	      int buffer_id = cd->recv_stage % 2;
-	      gaspi_notification_id_t id, test = i;
-	      gaspi_notification_t value;
-	      SUCCESS_OR_DIE(gaspi_notify_waitsome(2+buffer_id
-						    , test
-						    , 1
-						    , &id
-						    , GASPI_BLOCK
-						    ));
-	      ASSERT (id == test);	  
-	      SUCCESS_OR_DIE (gaspi_notify_reset(2+buffer_id
-						  , id
-						  , &value
-						  ));
-	      ASSERT (value == 1);
-	    }
-	}
+	  gaspi_notification_id_t id;
+	  gaspi_notification_t value = 0;	  	  
+	  int buffer_id = cd->recv_stage % 2;	  
+	  SUCCESS_OR_DIE(gaspi_notify_waitsome (2+buffer_id
+						, 0
+						, ncommdomains
+						, &id
+						, GASPI_BLOCK
+						));
+          SUCCESS_OR_DIE (gaspi_notify_reset (2+buffer_id
+                                              , id
+                                              , &value
+                                              ));
+          ASSERT(value != 0);
 
-      for(i = 0; i < ncommdomains; i++)
-	{
-	  int k = commpartner[i];
+	  int k = commpartner[id];	  
 	  ASSERT(recvcount[k] > 0);	 
 
 	  // flag received buffer 
-	  cd->recv_flag[i].global++;
+	  cd->recv_flag[id].global++;
 
+#ifndef USE_PARALLEL_SCATTER
 	  /* copy the data from the recvbuffer into out data field */
-	  int buffer_id = cd->recv_stage % 2;
 	  gaspi_pointer_t ptr;
 	  SUCCESS_OR_DIE(gaspi_segment_ptr(2+buffer_id, &ptr));		  
 	  double *rbuf = (double *) (ptr + local_recv_offset[k]);		  
@@ -229,18 +273,30 @@ void exchange_dbl_gaspi_bulk_sync(comm_data *cd
 				, rbuf
 				, data
 				, dim2
-				, i
+				, id
 				);
+#endif
 	}
-  
+    }
+
+#ifdef USE_PARALLEL_SCATTER
+  exchange_dbl_gaspi_scatter(cd, data, dim2);
+#endif
+
+  if (this_is_the_last_thread())
+    {
       // inc stage counter
       cd->send_stage++;
       cd->recv_stage++;
-
     }
 
+#ifndef USE_PARALLEL_SCATTER
 /* wait for recv/unpack */
 #pragma omp barrier
+#else
+/* no barrier -- in parallel scatter all threads unpack 
+   the specifically required parts of recv */   
+#endif
 
 }
 
@@ -269,26 +325,72 @@ void exchange_dbl_gaspi_async(comm_data *cd
   SUCCESS_OR_DIE(gaspi_segment_num(&snum));
   ASSERT(snum == 4);
 
-  int i;
+  int i;      
 
 #ifdef USE_PARALLEL_SCATTER
+#ifdef USE_GASPI_TEST
 
+  ASSERT(testsome_local != NULL);
+  for (i = 0; i < ncommdomains; ++i)
+    {
+      testsome_local[i] = 0;
+    }
+
+  int count = 0;
+  int nrecvcount = get_nrecvcount_local();
+  while (count < nrecvcount)
+    {
+      for (i = 0; i < ncommdomains; ++i)
+	{
+	  gaspi_notification_id_t nid, id = i;
+	  int nrecv = get_recvcount_local(i);
+	  if (nrecv > 0 && testsome_local[i] == 0)
+	    {
+	      gaspi_return_t ret;
+	      int buffer_id = cd->recv_stage % 2;	
+	      if ((ret = gaspi_notify_waitsome (2+buffer_id
+						, id
+						, 1
+						, &nid
+						, GASPI_TEST
+						)) == GASPI_SUCCESS
+		  )
+		{
+		  ASSERT (id == nid);
+		  int k = commpartner[i];
+	      
+		  /* copy the data from the recvbuffer into out data field */
+		  gaspi_pointer_t ptr;
+		  SUCCESS_OR_DIE(gaspi_segment_ptr(2+buffer_id, &ptr));		  
+		  double *rbuf = (double *) (ptr + local_recv_offset[k]);		  
+		  exchange_dbl_copy_out_local(rbuf
+					      , data
+					      , dim2
+					      , i
+					      );
+		  testsome_local[i] = 1;
+		  count++;
+		}
+	    }
+	}
+    }
+#else /* USE_PARALLEL_SCATTER && USE_GASPI_TEST */
   for (i = 0; i < ncommdomains; ++i)
     {
       gaspi_notification_id_t nid, id = i;
       int nrecv = get_recvcount_local(i);
       if (nrecv > 0)
 	{
-	  int buffer_id = cd->recv_stage % 2;	  
+	  int buffer_id = cd->recv_stage % 2;	
 	  SUCCESS_OR_DIE(gaspi_notify_waitsome (2+buffer_id
 						, id
 						, 1
 						, &nid
 						, GASPI_BLOCK
 						));
-	  ASSERT(id == nid);
-	  int k = commpartner[i];
 
+	  int k = commpartner[i];
+	      
 	  /* copy the data from the recvbuffer into out data field */
 	  gaspi_pointer_t ptr;
 	  SUCCESS_OR_DIE(gaspi_segment_ptr(2+buffer_id, &ptr));		  
@@ -300,6 +402,7 @@ void exchange_dbl_gaspi_async(comm_data *cd
 				      );
 	}
     }
+#endif /* USE_PARALLEL_SCATTER && !USE_GASPI_TEST */
 
   if (this_is_the_last_thread())
     {
@@ -323,13 +426,12 @@ void exchange_dbl_gaspi_async(comm_data *cd
       // inc stage counter
       cd->send_stage++;
       cd->recv_stage++;
-
     }
 
 /* no barrier -- in parallel scatter all threads unpack 
    the specifically required parts of recv */   
 
-#else
+#else /* USE_PARALLEL_SCATTER */
 
   if (this_is_the_first_thread())
     {
@@ -379,10 +481,10 @@ void exchange_dbl_gaspi_async(comm_data *cd
       cd->recv_stage++;
     }
 
-/* wait for recv/unpack */
 #pragma omp barrier
 
-#endif
+#endif /* !USE_PARALLEL_SCATTER */
+
 
 }
 
