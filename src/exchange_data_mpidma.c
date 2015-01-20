@@ -127,32 +127,68 @@ void exchange_dbl_mpidma_write(comm_data *cd
 }
 
 
+static void exchange_dbl_mpidma_scatter(comm_data *cd
+					, double *data
+					, int dim2
+					)
+{
+  int ncommdomains  = cd->ncommdomains;
+  int *commpartner  = cd->commpartner;
+  gaspi_offset_t *local_recv_offset = cd->local_recv_offset;
+
+  int i;
+  for (i = 0; i < ncommdomains; ++i)
+    {
+      int nrecv = get_recvcount_local(i);
+      if (nrecv > 0)
+	{
+	  volatile int flag;
+	  while ((flag = cd->recv_flag[i].global) == cd->recv_stage)
+	    {
+	      _mm_pause();
+	    }
+	  /* sanity check */
+	  ASSERT(flag == (cd->recv_stage + 1));
+
+	  /* copy the data from the recvbuf into out data field */
+	  int k = commpartner[i];
+	  double *rbuf = (double *) (rcvbuf + local_recv_offset[k]);
+	  exchange_dbl_copy_out_local(rbuf, data, dim2, i);	  
+	} 
+    }
+}
+
+
+
 void exchange_dbl_mpifence_bulk_sync(comm_data *cd
 				     , double *data
 				     , int dim2
 				     , int final
 				     )
 {
+
+  int ncommdomains  = cd->ncommdomains;
+  int *commpartner  = cd->commpartner;
+  int *recvcount    = cd->recvcount;
+  int **recvindex   = cd->recvindex;
+  
+  gaspi_offset_t *remote_recv_offset    = cd->remote_recv_offset;
+  gaspi_offset_t *local_recv_offset     = cd->local_recv_offset;
+  
+  int i;
+  
+  ASSERT(dim2 > 0);
+  ASSERT(ncommdomains != 0);
+  ASSERT(commpartner != NULL);
+  ASSERT(recvcount != NULL);
+  ASSERT(recvindex != NULL);
+  ASSERT(remote_recv_offset != NULL);
+  ASSERT(local_recv_offset != NULL);
+  ASSERT((final == 0 || final == 1));
+  
   /* wait for completed computation before send */
   if (this_is_the_last_thread())
   {
-    int ncommdomains  = cd->ncommdomains;
-    int *commpartner  = cd->commpartner;
-    int *recvcount    = cd->recvcount;
-    int **recvindex   = cd->recvindex;
-
-    gaspi_offset_t *remote_recv_offset    = cd->remote_recv_offset;
-    gaspi_offset_t *local_recv_offset     = cd->local_recv_offset;
-
-    int i;
-
-    ASSERT(dim2 > 0);
-    ASSERT(ncommdomains != 0);
-    ASSERT(recvcount != NULL);
-    ASSERT(recvindex != NULL);
-    ASSERT(remote_recv_offset != NULL);
-    ASSERT(local_recv_offset != NULL);
-    ASSERT((final == 0 || final == 1));
 
     MPI_Win_fence(MPI_MODE_NOPRECEDE, rcvwin);
     for(i = 0; i < ncommdomains; i++)
@@ -171,18 +207,33 @@ void exchange_dbl_mpifence_bulk_sync(comm_data *cd
 	// flag received buffer 
 	cd->recv_flag[i].global++;
 
+#ifndef USE_PARALLEL_SCATTER
 	/* copy the data from the recvbuffer into out data field */
         int k = commpartner[i];
 	double *rbuf = (double *) (rcvbuf + local_recv_offset[k]);
 	exchange_dbl_copy_out(cd, rbuf, data, dim2, i);
+#endif
+
       }
+  }
     
+#ifdef USE_PARALLEL_SCATTER
+  exchange_dbl_mpidma_scatter(cd, data, dim2);
+#endif
+
+  if (this_is_the_last_thread())
+  {
     cd->send_stage++;
     cd->recv_stage++;
   }
 
+#ifndef USE_PARALLEL_SCATTER
 /* wait for recv/unpack */
 #pragma omp barrier
+#else
+/* no barrier -- in parallel scatter all threads unpack 
+   the specifically required parts of recv */   
+#endif
 
 }
 
@@ -194,43 +245,58 @@ void exchange_dbl_mpifence_async(comm_data *cd
 				 , int final
 				 )
 {
+  int ncommdomains  = cd->ncommdomains;
+  int *commpartner  = cd->commpartner;
+  int *recvcount    = cd->recvcount;
+  int **recvindex   = cd->recvindex;
+  
+  gaspi_offset_t *local_recv_offset = cd->local_recv_offset;
+  
+  ASSERT(dim2 > 0);
+  ASSERT(ncommdomains != 0);
+  ASSERT(commpartner != NULL);
+  ASSERT(recvcount != NULL);
+  ASSERT(recvindex != NULL);
+  ASSERT(local_recv_offset != NULL);
+  ASSERT((final == 0 || final == 1));
+  
+  int i;
+  if (this_is_the_last_thread())
+    {
+      MPI_Win_fence(MPI_MODE_NOSTORE , rcvwin); // make sure data has arrived AND start next round
+
+      for (i = 0; i < ncommdomains; ++i)
+	{
+	  // flag received buffer 
+	  cd->recv_flag[i].global++;
+
+#ifndef USE_PARALLEL_SCATTER
+	  /* copy the data from the recvbuffer into out data field */
+	  int k = commpartner[i];
+	  double *rbuf = (double *) (rcvbuf + local_recv_offset[k]);
+	  exchange_dbl_copy_out(cd, rbuf, data, dim2, i);
+#endif
+	}
+    }
+
+#ifdef USE_PARALLEL_SCATTER
+  exchange_dbl_mpidma_scatter(cd, data, dim2);
+#endif
+
   if (this_is_the_last_thread())
   {
-    int ncommdomains  = cd->ncommdomains;
-    int *commpartner  = cd->commpartner;
-    int *recvcount    = cd->recvcount;
-    int **recvindex   = cd->recvindex;
-
-    gaspi_offset_t *local_recv_offset = cd->local_recv_offset;
-
-    ASSERT(dim2 > 0);
-    ASSERT(ncommdomains != 0);
-    ASSERT(recvcount != NULL);
-    ASSERT(recvindex != NULL);
-    ASSERT(local_recv_offset != NULL);
-    ASSERT((final == 0 || final == 1));
-
-    MPI_Win_fence(MPI_MODE_NOSTORE , rcvwin); // make sure data has arrived AND start next round
-
-    int i;
-    for (i = 0; i < ncommdomains; ++i)
-      {
-	// flag received buffer 
-	cd->recv_flag[i].global++;
-
-	/* copy the data from the recvbuffer into out data field */
-        int k = commpartner[i];
-	double *rbuf = (double *) (rcvbuf + local_recv_offset[k]);
-	exchange_dbl_copy_out(cd, rbuf, data, dim2, i);
-      }
-
     // inc stage counter
     cd->send_stage++;
     cd->recv_stage++;
   }
 
+#ifndef USE_PARALLEL_SCATTER
 /* wait for recv/unpack */
 #pragma omp barrier
+#else
+/* no barrier -- in parallel scatter all threads unpack 
+   the specifically required parts of recv */   
+#endif
 
 }
 
@@ -240,59 +306,76 @@ void exchange_dbl_mpipscw_bulk_sync(comm_data *cd
 				    , int final
 				    )
 {
+
+  int ncommdomains  = cd->ncommdomains;
+  int *commpartner  = cd->commpartner;
+  int *recvcount    = cd->recvcount;
+  int **recvindex   = cd->recvindex;
+  
+  gaspi_offset_t *remote_recv_offset    = cd->remote_recv_offset;
+  gaspi_offset_t *local_recv_offset     = cd->local_recv_offset;
+  
+  int i;
+  
+  ASSERT(dim2 > 0);
+  ASSERT(ncommdomains != 0);
+  ASSERT(commpartner != NULL);
+  ASSERT(recvcount != NULL);
+  ASSERT(recvindex != NULL);
+  ASSERT(remote_recv_offset != NULL);
+  ASSERT(local_recv_offset != NULL);
+  ASSERT((final == 0 || final == 1));
+  
   /* wait for completed computation before send */
   if (this_is_the_last_thread())
-  {
-    int ncommdomains  = cd->ncommdomains;
-    int *commpartner  = cd->commpartner;
-    int *recvcount    = cd->recvcount;
-    int **recvindex   = cd->recvindex;
+    {
+      mpidma_async_post_start();
 
-    gaspi_offset_t *remote_recv_offset    = cd->remote_recv_offset;
-    gaspi_offset_t *local_recv_offset     = cd->local_recv_offset;
-
-    int i;
-
-    ASSERT(dim2 > 0);
-    ASSERT(ncommdomains != 0);
-    ASSERT(recvcount != NULL);
-    ASSERT(recvindex != NULL);
-    ASSERT(remote_recv_offset != NULL);
-    ASSERT(local_recv_offset != NULL);
-    ASSERT((final == 0 || final == 1));
-  
-
-    mpidma_async_post_start();
-    for(i = 0; i < ncommdomains; i++)
-      {
+      for(i = 0; i < ncommdomains; i++)
+	{
 #if !defined(USE_PACK_IN_BULK_SYNC) && !defined(USE_PARALLEL_GATHER)
-	int k = cd->commpartner[i];
-	double *const sbuf = (double *) (sndbuf + cd->local_send_offset[k]);
-	exchange_dbl_copy_in(cd, sbuf, data, dim2, i);
+	  int k = cd->commpartner[i];
+	  double *const sbuf = (double *) (sndbuf + cd->local_send_offset[k]);
+	  exchange_dbl_copy_in(cd, sbuf, data, dim2, i);
 #endif
-        exchange_dbl_mpidma_write(cd, data, dim2, i);
-      }
-    mpidma_async_complete();
-    mpidma_async_wait();
+	  exchange_dbl_mpidma_write(cd, data, dim2, i);
+	}
 
-    for(i = 0; i < ncommdomains; i++)
-      {
-	// flag received buffer 
-	cd->recv_flag[i].global++;
+      mpidma_async_complete();
+      mpidma_async_wait();
 
-	/* copy the data from the recvbuffer into out data field */
-        int k = commpartner[i];
-	double *rbuf = (double *) (rcvbuf + local_recv_offset[k]);
-	exchange_dbl_copy_out(cd, rbuf, data, dim2, i);
-      }
+      for(i = 0; i < ncommdomains; i++)
+	{
+	  // flag received buffer 
+	  cd->recv_flag[i].global++;
 
-    // inc stage counter
-    cd->send_stage++;
-    cd->recv_stage++;
-  }
+#ifndef USE_PARALLEL_SCATTER
+	  /* copy the data from the recvbuffer into out data field */
+	  int k = commpartner[i];
+	  double *rbuf = (double *) (rcvbuf + local_recv_offset[k]);
+	  exchange_dbl_copy_out(cd, rbuf, data, dim2, i);
+#endif
+	}
+    }
 
+#ifdef USE_PARALLEL_SCATTER
+  exchange_dbl_mpidma_scatter(cd, data, dim2);
+#endif
+
+  if (this_is_the_last_thread())
+    {
+      // inc stage counter
+      cd->send_stage++;
+      cd->recv_stage++;
+    }
+
+#ifndef USE_PARALLEL_SCATTER
 /* wait for recv/unpack */
 #pragma omp barrier
+#else
+/* no barrier -- in parallel scatter all threads unpack 
+   the specifically required parts of recv */   
+#endif
 
 }
 
@@ -305,7 +388,6 @@ void exchange_dbl_mpipscw_async(comm_data *cd
 				)
 {
 
-#if defined(USE_MPI_MULTI_THREADED) && defined(USE_PSCW_EARLY_WAIT)
 
   int ncommdomains  = cd->ncommdomains;
   int *commpartner  = cd->commpartner;
@@ -313,19 +395,26 @@ void exchange_dbl_mpipscw_async(comm_data *cd
   int **recvindex   = cd->recvindex;
   gaspi_offset_t *local_recv_offset = cd->local_recv_offset;
 
+  ASSERT(dim2 > 0);
+  ASSERT(ncommdomains != 0);
+  ASSERT(commpartner != NULL);
+  ASSERT(recvcount != NULL);
+  ASSERT(recvindex != NULL);
+  ASSERT(local_recv_offset != NULL);
+  ASSERT((final == 0 || final == 1));
+  int i;
+
+#if defined(USE_PSCW_EARLY_WAIT)
+#ifndef USE_PSCW_EARLY_WAIT
+#error PSCW_EARLY_WAIT requires MPI_MULTI_THREADED
+#endif 
   if (this_is_the_first_thread())
+#else
+  if (this_is_the_last_thread())
+#endif
   {
-
-    ASSERT(dim2 > 0);
-    ASSERT(ncommdomains != 0);
-    ASSERT(recvcount != NULL);
-    ASSERT(recvindex != NULL);
-    ASSERT(local_recv_offset != NULL);
-    ASSERT((final == 0 || final == 1));
-
     mpidma_async_wait();
 
-    int i;
     for (i = 0; i < ncommdomains; ++i)
       {
 	// flag received buffer 
@@ -342,30 +431,7 @@ void exchange_dbl_mpipscw_async(comm_data *cd
   }
 
 #ifdef USE_PARALLEL_SCATTER
-  int i;
-  for (i = 0; i < ncommdomains; ++i)
-    {
-      int nrecv = get_recvcount_local(i);
-      if (nrecv > 0)
-	{
-	  volatile int flag;
-	  while ((flag = cd->recv_flag[i].global) == cd->recv_stage)
-	    {
-	      _mm_pause();
-	    }
-	  /* sanity check */
-	  ASSERT(flag == (cd->recv_stage + 1));
-
-	  /* copy the data from the recvbuf into out data field */
-	  int k = commpartner[i];
-	  double *rbuf = (double *) (rcvbuf + local_recv_offset[k]);		  
-	  exchange_dbl_copy_out_local(rbuf
-				      , data
-				      , dim2
-				      , i
-				      );
-      } 
-  }
+  exchange_dbl_mpidma_scatter(cd, data, dim2);
 #endif
 
   if (this_is_the_last_thread())
@@ -381,61 +447,15 @@ void exchange_dbl_mpipscw_async(comm_data *cd
       }
   }
 
+#ifndef USE_PARALLEL_SCATTER
 /* wait for recv/unpack */
 #pragma omp barrier
-
 #else
-
-
-  if (this_is_the_last_thread())
-  {
-    int ncommdomains  = cd->ncommdomains;
-    int *commpartner  = cd->commpartner;
-    int *recvcount    = cd->recvcount;
-    int **recvindex   = cd->recvindex;
-
-    gaspi_offset_t *local_recv_offset = cd->local_recv_offset;
-
-    ASSERT(dim2 > 0);
-    ASSERT(ncommdomains != 0);
-    ASSERT(recvcount != NULL);
-    ASSERT(recvindex != NULL);
-    ASSERT(local_recv_offset != NULL);
-
-    mpidma_async_wait();
-
-    int i;
-    for (i = 0; i < ncommdomains; ++i)
-      {
-	// flag received buffer 
-	cd->recv_flag[i].global++;
-
-	/* copy the data from the recvbuffer into out data field */
-        int k = commpartner[i];
-	double *rbuf = (double *) (rcvbuf + local_recv_offset[k]);
-	exchange_dbl_copy_out(cd, rbuf, data, dim2, i);
-      }
-
-    // inc stage counter
-    cd->send_stage++;
-    cd->recv_stage++;
-
-    if (! final)
-      {
-	/* start next round */
-	mpidma_async_post_start();
-      }
-  }
-
-/* wait for recv/unpack */
-#pragma omp barrier
-
+/* no barrier -- in parallel scatter all threads unpack 
+   the specifically required parts of recv */   
 #endif
-
 
 }
-
-
 
 void mpidma_async_post_start(void)
 {

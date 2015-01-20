@@ -241,6 +241,9 @@ void test_solver(comm_data *cd, solver_data *sd, int NTHREADS)
 #ifdef USE_PSCW_EARLY_WAIT
       printf(" -DUSE_PSCW_EARLY_WAIT");
 #endif
+#ifdef USE_MPI_ASYNC_EARLY_WAIT
+      printf(" -DUSE_MPI_ASYNC_EARLY_WAIT");
+#endif
 #ifdef USE_MPI_TEST
       printf(" -DUSE_MPI_TEST");
 #endif
@@ -252,6 +255,9 @@ void test_solver(comm_data *cd, solver_data *sd, int NTHREADS)
 #endif
 #ifdef USE_PARALLEL_SCATTER
       printf(" -DUSE_PARALLEL_SCATTER");
+#endif
+#ifdef USE_GASPI_TESTSOME
+      printf(" -DUSE_GASPI_TESTSOME");
 #endif
 
       printf("\n\n*** SETUP\n");

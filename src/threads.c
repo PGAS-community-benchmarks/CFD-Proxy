@@ -42,6 +42,9 @@ static volatile counter_t *send_counter_global = NULL;
 /* private comm var for threadprivate comm */
 static int *send_counter_local = NULL;
 #pragma omp threadprivate(send_counter_local)
+
+static int nsendcount_local = 0;
+#pragma omp threadprivate(nsendcount_local)
 static int *sendcount_local = NULL;
 #pragma omp threadprivate(sendcount_local)
 static int **sendindex_local = NULL;
@@ -49,6 +52,8 @@ static int **sendindex_local = NULL;
 static int **sendoffset_local = NULL;
 #pragma omp threadprivate(sendoffset_local)
 
+static int nrecvcount_local = 0;
+#pragma omp threadprivate(nrecvcount_local)
 static int *recvcount_local = NULL;
 #pragma omp threadprivate(recvcount_local)
 static int **recvindex_local = NULL;
@@ -72,14 +77,23 @@ int inc_send_counter_local(int i, int val)
 }
 
 /* getter/setter functions for thread local send/recv count */
+int get_nsendcount_local(void)
+{
+  return nsendcount_local;
+}
 int get_sendcount_local(int i)
 {
   return sendcount_local[i];
+}
+int get_nrecvcount_local(void)
+{
+  return nrecvcount_local;
 }
 int get_recvcount_local(int i)
 {
   return recvcount_local[i];
 }
+
 
 /* fetch/add wrapper */
 int my_add_and_fetch(volatile int *ptr, int val)
@@ -464,6 +478,15 @@ static void allocate_comm_data(comm_data *cd)
 	    sendcount_local[i3] += color->sendcount[i2];
 	  }
       }
+    int nsendcount = 0;
+    for(i1 = 0; i1 < cd->ncommdomains; i1++)
+      {
+	if (sendcount_local[i1] > 0)
+	  {
+	    nsendcount++;
+	  }
+      }
+    nsendcount_local = nsendcount;
 
     /* alloc thread private sendindex/sendoffset */
     sendindex_local = check_malloc(cd->ncommdomains * sizeof(int*));
@@ -521,6 +544,15 @@ static void allocate_comm_data(comm_data *cd)
 	    recvcount_local[i3] += color->recvcount[i2];
 	  }
       }
+    int nrecvcount = 0;
+    for(i1 = 0; i1 < cd->ncommdomains; i1++)
+      {
+	if (recvcount_local[i1] > 0)
+	  {
+	    nrecvcount++;
+	  }
+      }
+    nrecvcount_local = nrecvcount;
 
     /* alloc thread private recvindex/recvoffset */
     recvindex_local = check_malloc(cd->ncommdomains * sizeof(int*));

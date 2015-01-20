@@ -165,6 +165,35 @@ void exchange_dbl_mpi_post_recv(comm_data *cd
 
 
 
+static void exchange_dbl_mpi_scatter(comm_data *cd
+				     , double *data
+				     , int dim2
+				     )
+{
+  int ncommdomains  = cd->ncommdomains;
+
+  int i;
+  for (i = 0; i < ncommdomains; ++i)
+    {
+      int nrecv = get_recvcount_local(i);
+      if (nrecv > 0)
+	{
+	  volatile int flag;
+	  while ((flag = cd->recv_flag[i].global) == cd->recv_stage)
+	    {
+	      _mm_pause();
+	    }
+	  /* sanity check */
+	  ASSERT(flag == (cd->recv_stage + 1));
+
+	  /* copy the data from the recvbuf into out data field */
+	  double *rbuf = cd->recvbuf[i];
+	  exchange_dbl_copy_out_local(rbuf, data, dim2, i);	  
+	} 
+    }
+}
+
+
 void exchange_dbl_mpi_bulk_sync(comm_data *cd
 				, double *data
 				, int dim2
@@ -222,19 +251,33 @@ void exchange_dbl_mpi_bulk_sync(comm_data *cd
 	  // flag received buffer 
 	  cd->recv_flag[i].global++;
 
+#ifndef USE_PARALLEL_SCATTER
 	  /* copy the data from the recvbuf into out data field */
 	  double *rbuf = cd->recvbuf[i];
 	  exchange_dbl_copy_out(cd, rbuf, data, dim2, i);
+#endif
 	}
+    }
 
+#ifdef USE_PARALLEL_SCATTER
+  exchange_dbl_mpi_scatter(cd, data, dim2);
+#endif
+
+  if (this_is_the_last_thread())
+    {
       // inc stage counter
       cd->send_stage++;
       cd->recv_stage++;
 
     }
 
+#ifndef USE_PARALLEL_SCATTER
 /* wait for recv/unpack */
 #pragma omp barrier
+#else
+/* no barrier -- in parallel scatter all threads unpack 
+   the specifically required parts of recv */   
+#endif
 
 }
 
@@ -292,11 +335,20 @@ void exchange_dbl_mpi_early_recv(comm_data *cd
 	  // flag received buffer 
 	  cd->recv_flag[i].global++;
 
+#ifndef USE_PARALLEL_SCATTER
 	  /* copy the data from the recvbuf into out data field */
 	  double *rbuf = cd->recvbuf[i];
 	  exchange_dbl_copy_out(cd, rbuf, data, dim2, i);
+#endif
 	}
+    }
 
+#ifdef USE_PARALLEL_SCATTER
+  exchange_dbl_mpi_scatter(cd, data, dim2);
+#endif
+
+  if (this_is_the_last_thread())
+    {
       // inc stage counter
       cd->send_stage++;
       cd->recv_stage++;
@@ -306,16 +358,17 @@ void exchange_dbl_mpi_early_recv(comm_data *cd
 	  /* start next round */
 	  exchange_dbl_mpi_post_recv(cd, NGRAD * 3);
 	}
-
     }
 
+#ifndef USE_PARALLEL_SCATTER
 /* wait for recv/unpack */
 #pragma omp barrier
+#else
+/* no barrier -- in parallel scatter all threads unpack 
+   the specifically required parts of recv */   
+#endif
 
 }
-
-
-
 
 void exchange_dbl_mpi_async(comm_data *cd
 			    , double *data
@@ -341,10 +394,17 @@ void exchange_dbl_mpi_async(comm_data *cd
   ASSERT(sendindex != NULL);
   ASSERT(recvindex != NULL);
 
-#if defined(USE_MPI_MULTI_THREADED) && defined(USE_MPI_WAIT_ANY)
-  
+
+#if defined(USE_MPI_ASYNC_EARLY_WAIT)
+#ifndef USE_MPI_MULTI_THREADED
+#error MPI_ASYNC_EARLY_WAIT requires MPI_MULTI_THREADED
+#endif 
   if (this_is_the_first_thread())
+#else
+  if (this_is_the_last_thread())
+#endif
     {
+#if defined(USE_MPI_WAIT_ANY)
       for (i = 0; i < ncommdomains; ++i)
 	{
 	  int id = -1;
@@ -364,63 +424,8 @@ void exchange_dbl_mpi_async(comm_data *cd
 	  double *rbuf = cd->recvbuf[id];
 	  exchange_dbl_copy_out(cd, rbuf, data, dim2, id);	  
 #endif
-	} 
-    }
-
-#ifdef USE_PARALLEL_SCATTER
-  for (i = 0; i < ncommdomains; ++i)
-    {
-      int nrecv = get_recvcount_local(i);
-      if (nrecv > 0)
-	{
-	  volatile int flag;
-	  while ((flag = cd->recv_flag[i].global) == cd->recv_stage)
-	    {
-	      _mm_pause();
-	    }
-	  /* sanity check */
-	  ASSERT(flag == (cd->recv_stage + 1));
-
-	  /* copy the data from the recvbuf into out data field */
-	  double *rbuf = cd->recvbuf[i];
-	  exchange_dbl_copy_out_local(rbuf, data, dim2, i);	  
-	} 
-    }
-#endif
-
-  if (this_is_the_last_thread())
-    {
-      /* wait for send */
-      MPI_Waitall(ncommdomains
-		  , &(cd->req[ncommdomains])
-		  , &(cd->stat[ncommdomains])
-		  );
-
-      // inc stage counter
-      cd->send_stage++;
-      cd->recv_stage++;
-
-      if (! final)
-	{
-	/* start next round */
-	  exchange_dbl_mpi_post_recv(cd, NGRAD * 3);
 	}
-
-    }
-
-#ifndef USE_PARALLEL_SCATTER
-/* wait for recv/unpack */
-#pragma omp barrier
-#else
-/* no barrier -- in parallel scatter all threads unpack 
-   the specifically required parts of recv */   
-#endif
-
-#else
-
-  if (this_is_the_last_thread())
-    {
-
+#else /* USE_MPI_WAIT_ANY */
       MPI_Waitall(2*ncommdomains
 		  , cd->req
 		  , cd->stat
@@ -431,28 +436,39 @@ void exchange_dbl_mpi_async(comm_data *cd
 	  // flag received buffer 
 	  cd->recv_flag[i].global++;
 
+#ifndef USE_PARALLEL_SCATTER
 	  /* copy the data from the recvbuf into out data field */
 	  double *rbuf = cd->recvbuf[i];
 	  exchange_dbl_copy_out(cd, rbuf, data, dim2, i);	  
-	} 
+#endif
+	}
+#endif /* !USE_MPI_WAIT_ANY */
+    }
 
+#ifdef USE_PARALLEL_SCATTER
+   exchange_dbl_mpi_scatter(cd, data, dim2);
+#endif
+
+  if (this_is_the_last_thread())
+    {
       // inc stage counter
       cd->send_stage++;
       cd->recv_stage++;
 
       if (! final)
 	{
-	  /* start next round */
+	/* start next round */
 	  exchange_dbl_mpi_post_recv(cd, NGRAD * 3);
 	}
     }
 
+#ifndef USE_PARALLEL_SCATTER
 /* wait for recv/unpack */
 #pragma omp barrier
-
+#else
+/* no barrier -- in parallel scatter all threads unpack 
+   the specifically required parts of recv */   
 #endif
-
-
 
 
 }

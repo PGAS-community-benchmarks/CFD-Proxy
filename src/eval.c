@@ -28,13 +28,15 @@
 
 void eval_thread_comm(comm_data *cd)
 {
+  ASSERT(cd != NULL);
+
+#ifdef DEBUG
 #pragma omp parallel default (none) shared(cd\
             , stdout, stderr)
     {
       int const tid = omp_get_thread_num();
       RangeList *color;
 
-#ifdef DEBUG
       int ncolors = 0;
       int scolors = 0;
       for (color = get_color(); color != NULL
@@ -48,7 +50,6 @@ void eval_thread_comm(comm_data *cd)
 	}
       printf("iProc: %6d tid: %4d ncolors: %d scolors: %d\n"
 	     ,cd->iProc,tid,ncolors,scolors);
-#endif
 
       int nsend = 0;
       for (color = get_color(); color != NULL
@@ -80,6 +81,7 @@ void eval_thread_comm(comm_data *cd)
 	}
 
     }
+#endif
 }
 
 
