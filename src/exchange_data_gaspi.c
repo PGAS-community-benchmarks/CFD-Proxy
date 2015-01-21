@@ -328,10 +328,10 @@ void exchange_dbl_gaspi_async(comm_data *cd
   int i;      
 
   /* 
-     note - GASPI leverages parallel scatter by design.
+     note - GASPI leverages parallel scatter by default.
      The GASPI API uses a multithreaded evaluation of notifications.
-     No flag for the received data hence is required, instead 
-     notifications are actually flags for received data.
+     No flags for the received data hence are required, instead 
+     notifications are in fact flags for received data.
   */
 
 #ifdef USE_PARALLEL_SCATTER
