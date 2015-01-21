@@ -426,7 +426,7 @@ void exchange_dbl_mpi_async(comm_data *cd
 #endif
 	}
 #else /* USE_MPI_WAIT_ANY */
-      MPI_Waitall(2*ncommdomains
+      MPI_Waitall(ncommdomains
 		  , cd->req
 		  , cd->stat
 		  );
@@ -451,6 +451,12 @@ void exchange_dbl_mpi_async(comm_data *cd
 
   if (this_is_the_last_thread())
     {
+
+      MPI_Waitall(ncommdomains
+		  , &(cd->req[ncommdomains])
+		  , &(cd->stat[ncommdomains])
+		  );
+
       // inc stage counter
       cd->send_stage++;
       cd->recv_stage++;
