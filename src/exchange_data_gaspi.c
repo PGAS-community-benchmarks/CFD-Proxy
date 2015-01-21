@@ -327,6 +327,13 @@ void exchange_dbl_gaspi_async(comm_data *cd
 
   int i;      
 
+  /* 
+     note - GASPI leverages parallel scatter by design.
+     The GASPI API uses a multithreaded evaluation of notifications.
+     No flag for the received data hence is required, instead 
+     notifications are actually flags for received data.
+  */
+
 #ifdef USE_PARALLEL_SCATTER
 #ifdef USE_GASPI_TEST
 
@@ -358,6 +365,7 @@ void exchange_dbl_gaspi_async(comm_data *cd
 		{
 		  ASSERT (id == nid);
 		  int k = commpartner[i];
+		  ASSERT(recvcount[k] > 0);	 
 	      
 		  /* copy the data from the recvbuffer into out data field */
 		  gaspi_pointer_t ptr;
@@ -390,6 +398,7 @@ void exchange_dbl_gaspi_async(comm_data *cd
 						));
 
 	  int k = commpartner[i];
+	  ASSERT(recvcount[k] > 0);	 
 	      
 	  /* copy the data from the recvbuffer into out data field */
 	  gaspi_pointer_t ptr;
@@ -412,6 +421,9 @@ void exchange_dbl_gaspi_async(comm_data *cd
 	  gaspi_notification_t value = 0;	  	  
 	  int buffer_id = cd->recv_stage % 2;	  
 
+	  // flag received buffer 
+	  cd->recv_flag[id].global++;
+
 	  /* .. and reset */
 	  SUCCESS_OR_DIE (gaspi_notify_reset (2+buffer_id
 					      , id
@@ -419,8 +431,6 @@ void exchange_dbl_gaspi_async(comm_data *cd
 					      ));
 	  ASSERT(value != 0);
 	  
-	  // flag received buffer 
-	  cd->recv_flag[i].global++;
 	}
 
       // inc stage counter
