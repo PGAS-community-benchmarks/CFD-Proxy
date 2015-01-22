@@ -451,7 +451,7 @@ void exchange_dbl_mpi_async(comm_data *cd
 
   if (this_is_the_last_thread())
     {
-
+      // wait for all MPI_Isend we have issued
       MPI_Waitall(ncommdomains
 		  , &(cd->req[ncommdomains])
 		  , &(cd->stat[ncommdomains])
