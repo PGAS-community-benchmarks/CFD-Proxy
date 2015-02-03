@@ -150,7 +150,6 @@ void test_solver(comm_data *cd, solver_data *sd, int NTHREADS)
       time += now();
       median[5][k] = time;
 
-#endif
 
       /* MPI put/fence bulk sync */
       time = -now();
@@ -225,7 +224,10 @@ void test_solver(comm_data *cd, solver_data *sd, int NTHREADS)
       MPI_Barrier(MPI_COMM_WORLD);
       time += now();
       median[9][k] = time;
+#endif
 
+      printf(".");
+      fflush(stdout);
     }
 
   if (cd->iProc == 0)
@@ -237,6 +239,9 @@ void test_solver(comm_data *cd, solver_data *sd, int NTHREADS)
 #endif
 #ifdef USE_MPI_WAIT_ANY
       printf(" -DUSE_MPI_WAIT_ANY");
+#endif
+#ifdef USE_MPI_TEST_ANY
+      printf(" -DUSE_MPI_TEST_ANY");
 #endif
 #ifdef USE_PSCW_EARLY_WAIT
       printf(" -DUSE_PSCW_EARLY_WAIT");
