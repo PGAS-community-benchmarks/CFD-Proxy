@@ -76,15 +76,25 @@ void read_communication_data(int ncid, comm_data *cd)
 
   /* read val */
   cd->ndomains = get_nc_val(ncid,"ndomains");
-  cd->ncommdomains = get_nc_val(ncid,"ncommdomains");
   cd->nownpoints = get_nc_val(ncid,"nownpoints");
+ 
+ /* threading model only */
+  if (cd->ndomains == 1)
+    {
+      return;
+    }
+
+  /* read val */
   cd->naddpoints = get_nc_val(ncid,"naddpoints");
+  cd->ncommdomains = get_nc_val(ncid,"ncommdomains");
+
+  /* sanity check*/
+  ASSERT(cd->ndomains >= 1);
+  ASSERT(cd->ndomains == cd->nProc);
 
   /* sanity check*/
   ASSERT(cd->naddpoints > 0);
   ASSERT(cd->ncommdomains > 0);
-  ASSERT(cd->ndomains > 1);
-  ASSERT(cd->ndomains == cd->nProc);
 
   /* alloc */
   cd->commpartner = check_malloc(cd->ncommdomains * sizeof(int));
@@ -104,6 +114,14 @@ void read_communication_data(int ncid, comm_data *cd)
 
 static void create_recvsend_index(comm_data *cd)
 {
+  ASSERT(cd != NULL);
+
+  /* threading model only */
+  if (cd->ndomains == 1)
+    {
+      return;
+    }
+
   int i;
   const int nown   = cd->nownpoints;
   const int nadd   = cd->naddpoints;
@@ -111,7 +129,7 @@ static void create_recvsend_index(comm_data *cd)
   const int iProc  = cd->iProc;
 
   ASSERT(cd != NULL);
-  ASSERT(cd->ndomains > 1);
+  ASSERT(cd->ndomains >= 1);
   ASSERT(cd->ncommdomains != 0);
   ASSERT(cd->sendcount != NULL);
   ASSERT(cd->recvcount != NULL);
@@ -237,6 +255,14 @@ static void create_recvsend_index(comm_data *cd)
 
 void init_communication(int argc, char *argv[], comm_data *cd)
 {
+  ASSERT(cd != NULL);
+
+  /* threading model only */
+  if (cd->ndomains == 1)
+    {      
+      return;
+    }
+
   /* MPI init */
   int nProc, iProc;
 
@@ -278,10 +304,17 @@ void init_communication(int argc, char *argv[], comm_data *cd)
 
 static void compute_offset_tables(comm_data *cd)
 {
-  int i;
-
   ASSERT(cd != NULL);
-  ASSERT(cd->ndomains > 1);
+
+  /* threading model only */
+  if (cd->ndomains == 1)
+    {
+      return;
+    }
+
+  int i;
+  ASSERT(cd != NULL);
+  ASSERT(cd->ndomains >= 1);
   ASSERT(cd->ncommdomains != 0);
   ASSERT(cd->sendcount != NULL);
   ASSERT(cd->recvcount != NULL);
@@ -408,7 +441,13 @@ static void compute_offset_tables(comm_data *cd)
 
 void compute_communication_tables(comm_data *cd)
 {
+  ASSERT(cd != NULL);
 
+  /* threading model only */
+  if (cd->ndomains == 1)
+    {
+      return;
+    }
 
   ASSERT(cd != NULL);
   ASSERT(cd->naddpoints != 0);
@@ -459,9 +498,15 @@ void compute_communication_tables(comm_data *cd)
 }
 
 
-void free_communication_ressources(void)
+void free_communication_ressources(comm_data *cd)
 {	
+  ASSERT(cd != NULL);
 
+  /* threading model only */
+  if (cd->ndomains == 1)
+    {
+      return;
+    }
 
   free_mpidma_win(); 
   MPI_Finalize();

@@ -268,7 +268,9 @@ void initiate_thread_comm_mpi_send(RangeList *color
     }
 
 #if defined(USE_MPI_TEST)
+#if defined(USE_OMP_MASTER_FOR_MPI_TEST)
 #pragma omp master
+#endif
   {
 #ifndef USE_MPI_MULTI_THREADED
 #pragma omp critical (mpi)
@@ -632,6 +634,14 @@ void init_threads(comm_data *cd
     init_thread_neighbours(cd, sd, tid, pid);
   }
 
+  /* free metadata */
+  check_free(pid);
+  check_free(htype);
+
+  if (cd->ndomains == 1)
+    {
+      return;
+    }
 
   /* init thread communication */
   init_thread_comm(cd, sd);
@@ -642,8 +652,6 @@ void init_threads(comm_data *cd
   /* sanity check */
   eval_thread_comm(cd);
 
-  check_free(pid);
-  check_free(htype);
 
 
 }

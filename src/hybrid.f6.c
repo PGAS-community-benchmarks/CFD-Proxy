@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
   read_solver_data(ncid, &sd);
 
   /* init solver */
-  const int NITER = 100;
+  const int NITER = 25;
   init_solver_data(&sd, NITER);
 
   /* read comm data */
@@ -81,7 +81,7 @@ int main(int argc, char *argv[])
   test_solver(&cd, &sd, NTHREADS);
 
   /* free comm ressources */
-  free_communication_ressources();
+  free_communication_ressources(&cd);
 
   /* close file. */
   if ((retval = nc_close(ncid)))

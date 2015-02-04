@@ -57,6 +57,6 @@ typedef struct
 void init_communication(int argc, char *argv[], comm_data *cd);
 void read_communication_data(int ncid, comm_data *cd);
 void compute_communication_tables(comm_data *cd);
-void free_communication_ressources(void);
+void free_communication_ressources(comm_data *cd);
 
 #endif
