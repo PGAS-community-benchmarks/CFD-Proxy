@@ -119,8 +119,13 @@ void eval_thread_rangelist(solver_data *sd)
     }
   for(i0 = 0; i0 < sd->nallpoints; i0++) 
     {      
-      ASSERT(tmp1[i0] == 0);
+      if (tmp1[i0] != 0)
+        {
+          printf("i0: %d nown: %d tmp1: %d\n",i0,sd->nownpoints,tmp1[i0]);
+	}
+      //ASSERT(tmp1[i0] == 0);
     }
+
 
   /* validate first_points_of_color, ftype and tid*/
   for(i0 = 0; i0 < sd->nallpoints; i0++) 

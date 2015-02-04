@@ -29,7 +29,7 @@
 #include "exchange_data_gaspi.h"
 #endif
 
-#define N_MEDIAN 20
+#define N_MEDIAN 25
 #define N_SOLVER 10
 
 void test_solver(comm_data *cd, solver_data *sd, int NTHREADS)
@@ -56,6 +56,12 @@ void test_solver(comm_data *cd, solver_data *sd, int NTHREADS)
       MPI_Barrier(MPI_COMM_WORLD);
       time += now();
       median[0][k] = time;
+
+      /* all remaining tests require ndomains >=1 */
+      if (cd->ndomains == 1)
+	{
+	  continue;
+	}
 
       /* MPI bulk sync */
       time = -now();
@@ -150,7 +156,6 @@ void test_solver(comm_data *cd, solver_data *sd, int NTHREADS)
       time += now();
       median[5][k] = time;
 
-#endif
 
       /* MPI put/fence bulk sync */
       time = -now();
@@ -225,6 +230,12 @@ void test_solver(comm_data *cd, solver_data *sd, int NTHREADS)
       MPI_Barrier(MPI_COMM_WORLD);
       time += now();
       median[9][k] = time;
+#endif
+
+#ifdef DEBUG
+      printf(".");
+      fflush(stdout);
+#endif
 
     }
 
@@ -238,6 +249,9 @@ void test_solver(comm_data *cd, solver_data *sd, int NTHREADS)
 #ifdef USE_MPI_WAIT_ANY
       printf(" -DUSE_MPI_WAIT_ANY");
 #endif
+#ifdef USE_MPI_TEST_ANY
+      printf(" -DUSE_MPI_TEST_ANY");
+#endif
 #ifdef USE_PSCW_EARLY_WAIT
       printf(" -DUSE_PSCW_EARLY_WAIT");
 #endif
@@ -246,6 +260,9 @@ void test_solver(comm_data *cd, solver_data *sd, int NTHREADS)
 #endif
 #ifdef USE_MPI_TEST
       printf(" -DUSE_MPI_TEST");
+#endif
+#ifdef USE_OMP_MASTER_FOR_MPI_TEST
+      printf(" -DUSE_OMP_MASTER_FOR_MPI_TEST");
 #endif
 #ifdef USE_PACK_IN_BULK_SYNC
       printf(" -DUSE_PACK_IN_BULK_SYNC");

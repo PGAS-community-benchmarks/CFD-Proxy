@@ -28,6 +28,9 @@
 #include "error_handling.h"
 
 #ifdef USE_GASPI_TEST
+#ifndef USE_GASPI
+#error GASPI_TEST requires GASPI
+#endif
 int *testsome_local = NULL;
 #pragma omp threadprivate(testsome_local)
 #endif

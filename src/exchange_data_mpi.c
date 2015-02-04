@@ -23,6 +23,7 @@
 
 #define DATAKEY 4712
 
+
 void init_mpi_requests(comm_data *cd, int dim2)
 {
   int i;
@@ -70,6 +71,7 @@ void init_mpi_requests(comm_data *cd, int dim2)
 	    check_malloc(dim2 * cd->recvcount[k] * max_elem_sz * szd);
 	}
     }  
+
 
 }
 
@@ -404,7 +406,7 @@ void exchange_dbl_mpi_async(comm_data *cd
   if (this_is_the_last_thread())
 #endif
     {
-#if defined(USE_MPI_WAIT_ANY)
+#if defined(USE_MPI_WAIT_ANY )
       for (i = 0; i < ncommdomains; ++i)
 	{
 	  int id = -1;
@@ -425,6 +427,46 @@ void exchange_dbl_mpi_async(comm_data *cd
 	  exchange_dbl_copy_out(cd, rbuf, data, dim2, id);	  
 #endif
 	}
+
+#elif defined(USE_MPI_TEST_ANY )
+      int count = 0;
+      while (count < ncommdomains)
+	{
+	  int flag = 0;
+	  int id   = -1;
+	  MPI_Testany(ncommdomains
+		      , cd->req
+		      , &id
+		      , &flag
+		      , cd->stat);
+	  if (flag)
+	    {
+	      if (id == MPI_UNDEFINED)
+		{
+		  ASSERT(count == ncommdomains);
+		  break;
+		}
+	      else
+		{
+		  ASSERT(id >= 0 && id < ncommdomains);      
+		  
+		  // flag received buffer 
+		  cd->recv_flag[id].global++;
+		  
+#ifndef USE_PARALLEL_SCATTER
+		  /* copy the data from the recvbuf into out data field */
+		  double *rbuf = cd->recvbuf[id];
+		  exchange_dbl_copy_out(cd, rbuf, data, dim2, id);	  
+#endif
+		  count++;
+		}
+	    }
+	  else
+	    {
+	      _mm_pause();
+	    }
+	}
+      
 #else /* USE_MPI_WAIT_ANY */
       MPI_Waitall(ncommdomains
 		  , cd->req
@@ -442,6 +484,7 @@ void exchange_dbl_mpi_async(comm_data *cd
 	  exchange_dbl_copy_out(cd, rbuf, data, dim2, i);	  
 #endif
 	}
+
 #endif /* !USE_MPI_WAIT_ANY */
     }
 
