@@ -252,11 +252,11 @@ void test_solver(comm_data *cd, solver_data *sd, int NTHREADS)
 #ifdef USE_MPI_TEST_ANY
       printf(" -DUSE_MPI_TEST_ANY");
 #endif
-#ifdef USE_PSCW_EARLY_WAIT
-      printf(" -DUSE_PSCW_EARLY_WAIT");
+#ifdef USE_MPI_IMMEDIATE_WAIT
+      printf(" -DUSE_MPI_IMMEDIATE_WAIT");
 #endif
-#ifdef USE_MPI_ASYNC_EARLY_WAIT
-      printf(" -DUSE_MPI_ASYNC_EARLY_WAIT");
+#ifdef USE_MPI_EARLY_WAIT
+      printf(" -DUSE_MPI_EARLY_WAIT");
 #endif
 #ifdef USE_MPI_TEST
       printf(" -DUSE_MPI_TEST");
@@ -280,6 +280,8 @@ void test_solver(comm_data *cd, solver_data *sd, int NTHREADS)
       printf("\n\n*** SETUP\n");
       printf("                                 nProc: %d\n",cd->nProc);
       printf("                              NTHREADS: %d\n",NTHREADS);
+      printf("                                 NITER: %d\n",sd->niter);
+      printf("                              N_MEDIAN: %d\n",N_MEDIAN);
 
       for (k = 0; k < N_SOLVER; ++k)
 	{ 

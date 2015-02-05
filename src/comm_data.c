@@ -67,6 +67,7 @@ static void init_communication_data(int iProc, int nProc, comm_data *cd)
   cd->recv_flag = NULL;
   cd->send_stage = 0;
   cd->recv_stage = 0;
+  cd->comm_stage = 0;
 
 }
 
@@ -508,7 +509,10 @@ void free_communication_ressources(comm_data *cd)
       return;
     }
 
-  free_mpidma_win(); 
+  MPI_Barrier(MPI_COMM_WORLD);
+  free_mpidma_win();
+
+  MPI_Barrier(MPI_COMM_WORLD);
   MPI_Finalize();
 
 }

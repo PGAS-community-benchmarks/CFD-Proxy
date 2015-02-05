@@ -50,6 +50,7 @@ typedef struct
   volatile counter_t *send_flag;
   volatile int recv_stage;
   volatile int send_stage;
+  volatile int comm_stage;
 
 } comm_data ;
 

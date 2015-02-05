@@ -105,7 +105,7 @@ int my_add_and_fetch(volatile int *ptr, int val)
 #else
   int t;
   //#pragma omp atomic capture 
-#pragma omp critical (addfetch)
+#pragma omp critical (add_and_fetch)
   { 
     t = *ptr; 
     *ptr += val; 
@@ -125,7 +125,7 @@ int my_fetch_and_add(volatile int *ptr, int val)
 #else
   int t;
   //#pragma omp atomic capture 
-#pragma omp critical (fetchadd)
+#pragma omp critical (fetch_and_add)
   { 
     t = *ptr; 
     *ptr += val; 
@@ -182,14 +182,17 @@ void initiate_thread_comm_mpi_pack(RangeList *color
 				   )
 {
   int i;
+  static volatile int shared = 0;
   for(i = 0; i < color->nsendcount; i++)
     {
       int i1 = color->sendpartner[i];
       double *sbuf = cd->sendbuf[i1];
-      if (color->sendcount[i] > 0 && sendcount_local[i1] > 0)
+      if (color->sendcount[i] > 0 
+	  && sendcount_local[i1] > 0)
 	{
 	  send_counter_local[i1] += color->sendcount[i];
-	  if(send_counter_local[i1] % sendcount_local[i1] == 0)
+	  if(send_counter_local[i1] 
+	     % sendcount_local[i1] == 0)
 	    {
 #ifdef USE_PARALLEL_GATHER
 	      exchange_dbl_copy_in_local(sbuf
@@ -197,9 +200,13 @@ void initiate_thread_comm_mpi_pack(RangeList *color
 					 , dim2
 					 , i1);
 #endif
-	      int inc_global = inc_send_counter_global(i1, sendcount_local[i1]);
+	      int inc_global 
+		= inc_send_counter_global(i1
+					  , sendcount_local[i1]
+					  );
 	      int k = cd->commpartner[i1];
-	      if (inc_global % cd->sendcount[k] == 0)
+	      if (inc_global 
+		  % cd->sendcount[k] == 0)
 		{
 #ifndef USE_PARALLEL_GATHER
 		  exchange_dbl_copy_in(cd
@@ -208,6 +215,13 @@ void initiate_thread_comm_mpi_pack(RangeList *color
 				       , dim2
 				       , i1
 				       );
+#endif
+#if defined(USE_MPI_EARLY_WAIT)
+		  if (my_add_and_fetch(&shared, 1) 
+		      % cd->ncommdomains == 0)
+		    {
+		      my_add_and_fetch(&(cd->comm_stage), 1);
+		    }
 #endif
 		}
 	    }
@@ -224,15 +238,17 @@ void initiate_thread_comm_mpi_send(RangeList *color
 				   )
 {
   int i;
-
+  static volatile int shared = 0;
   for(i = 0; i < color->nsendcount; i++)
     {
       int i1 = color->sendpartner[i];
       double *sbuf = cd->sendbuf[i1];
-      if (color->sendcount[i] > 0 && sendcount_local[i1] > 0)
+      if (color->sendcount[i] > 0 
+	  && sendcount_local[i1] > 0)
 	{
 	  send_counter_local[i1] += color->sendcount[i];
-	  if(send_counter_local[i1] % sendcount_local[i1] == 0)
+	  if(send_counter_local[i1] 
+	     % sendcount_local[i1] == 0)
 	    {
 #ifdef USE_PARALLEL_GATHER
 	      exchange_dbl_copy_in_local(sbuf
@@ -240,9 +256,13 @@ void initiate_thread_comm_mpi_send(RangeList *color
 					 , dim2
 					 , i1);
 #endif
-	      int inc_global = inc_send_counter_global(i1, sendcount_local[i1]);
+	      int inc_global 
+		= inc_send_counter_global(i1
+					  , sendcount_local[i1]
+					  );
 	      int k = cd->commpartner[i1];
-	      if (inc_global % cd->sendcount[k] == 0)
+	      if (inc_global 
+		  % cd->sendcount[k] == 0)
 		{
 #ifndef USE_PARALLEL_GATHER
 		  exchange_dbl_copy_in(cd
@@ -262,6 +282,13 @@ void initiate_thread_comm_mpi_send(RangeList *color
 					  , i1
 					  );
 		  }
+#ifdef USE_MPI_EARLY_WAIT
+		  if (my_add_and_fetch(&shared, 1) 
+		      % cd->ncommdomains == 0)
+		    {
+		      my_add_and_fetch(&(cd->comm_stage), 1);
+		    }
+#endif
 		}
 	    }
 	}
@@ -290,16 +317,19 @@ void initiate_thread_comm_mpi_fence(RangeList *color
 				    )
 {
   int i;
+  static volatile int shared = 0;
   for(i = 0; i < color->nsendcount; i++)
     {
       int i1 = color->sendpartner[i];
       void *sndbuf = get_sndbuf();
       int k = cd->commpartner[i1];
       double *const sbuf = (double *) (sndbuf + cd->local_send_offset[k]);
-      if (color->sendcount[i] > 0 && sendcount_local[i1] > 0)
+      if (color->sendcount[i] > 0 
+	  && sendcount_local[i1] > 0)
 	{
 	  send_counter_local[i1] += color->sendcount[i];
-	  if(send_counter_local[i1] % sendcount_local[i1] == 0)
+	  if(send_counter_local[i1] 
+	     % sendcount_local[i1] == 0)
 	    {
 #ifdef USE_PARALLEL_GATHER
 	      exchange_dbl_copy_in_local(sbuf
@@ -307,8 +337,12 @@ void initiate_thread_comm_mpi_fence(RangeList *color
 					 , dim2
 					 , i1);
 #endif
-	      int inc_global = inc_send_counter_global(i1, sendcount_local[i1]);
-	      if (inc_global % cd->sendcount[k] == 0)
+	      int inc_global 
+		= inc_send_counter_global(i1
+					  , sendcount_local[i1]
+					  );
+	      if (inc_global 
+		  % cd->sendcount[k] == 0)
 		{
 #ifndef USE_PARALLEL_GATHER
 		  exchange_dbl_copy_in(cd
@@ -323,7 +357,15 @@ void initiate_thread_comm_mpi_fence(RangeList *color
 #endif
 		  {
 		    exchange_dbl_mpidma_write(cd, data, dim2, i1);
+
 		  }
+#ifdef USE_MPI_EARLY_WAIT
+		  if (my_add_and_fetch(&shared, 1) 
+		      % cd->ncommdomains == 0)
+		    {
+		      my_add_and_fetch(&(cd->comm_stage), 1);
+		    }
+#endif
 		}
 	    }
 	}
@@ -338,17 +380,19 @@ void initiate_thread_comm_mpi_pscw(RangeList *color
 				   )
 {
   int i;
-  static volatile int shared_nput = 0;
+  static volatile int shared = 0;
   for(i = 0; i < color->nsendcount; i++)
     {
       int i1 = color->sendpartner[i];
       void *sndbuf = get_sndbuf();
       int k = cd->commpartner[i1];
       double *const sbuf = (double *) (sndbuf + cd->local_send_offset[k]);
-      if (color->sendcount[i] > 0 && sendcount_local[i1] > 0)
+      if (color->sendcount[i] > 0 
+	  && sendcount_local[i1] > 0)
 	{
 	  send_counter_local[i1] += color->sendcount[i];
-	  if(send_counter_local[i1] % sendcount_local[i1] == 0)
+	  if(send_counter_local[i1] 
+	     % sendcount_local[i1] == 0)
 	    {
 #ifdef USE_PARALLEL_GATHER
 	      exchange_dbl_copy_in_local(sbuf
@@ -356,8 +400,12 @@ void initiate_thread_comm_mpi_pscw(RangeList *color
 					 , dim2
 					 , i1);
 #endif
-	      int inc_global = inc_send_counter_global(i1, sendcount_local[i1]);
-	      if (inc_global % cd->sendcount[k] == 0)
+	      int inc_global 
+		= inc_send_counter_global(i1
+					  , sendcount_local[i1]
+					  );
+	      if (inc_global 
+		  % cd->sendcount[k] == 0)
 		{
 #ifndef USE_PARALLEL_GATHER
 		  exchange_dbl_copy_in(cd
@@ -372,11 +420,15 @@ void initiate_thread_comm_mpi_pscw(RangeList *color
 #endif
 		  {
 		    exchange_dbl_mpidma_write(cd, data, dim2, i1);
-		    if (my_add_and_fetch(&shared_nput, 1) % cd->ncommdomains == 0)
-		      {
-			mpidma_async_complete();
-		      }
-		  }
+		    if (my_add_and_fetch(&shared, 1) 
+			% cd->ncommdomains == 0)
+		        {
+			  mpidma_async_complete();
+#ifdef USE_MPI_EARLY_WAIT
+			  my_add_and_fetch(&(cd->comm_stage), 1);
+#endif
+		        }
+		    }
 		}
 	    }
 	}
@@ -392,6 +444,7 @@ void initiate_thread_comm_gaspi(RangeList *color
 			       )
 {
   int i;
+  static volatile int shared = 0;
   for(i = 0; i < color->nsendcount; i++)
     {
       int i1 = color->sendpartner[i];
@@ -400,10 +453,12 @@ void initiate_thread_comm_gaspi(RangeList *color
       SUCCESS_OR_DIE(gaspi_segment_ptr(buffer_id, &ptr));
       int k = cd->commpartner[i1];
       double *sbuf = (double *) (ptr + cd->local_send_offset[k]); 
-      if (color->sendcount[i] > 0 && sendcount_local[i1] > 0)
+      if (color->sendcount[i] > 0 
+	  && sendcount_local[i1] > 0)
 	{
 	  send_counter_local[i1] += color->sendcount[i];
-	  if(send_counter_local[i1] % sendcount_local[i1] == 0)
+	  if(send_counter_local[i1] 
+	     % sendcount_local[i1] == 0)
 	    {
 #ifdef USE_PARALLEL_GATHER
 	      exchange_dbl_copy_in_local(sbuf
@@ -412,8 +467,12 @@ void initiate_thread_comm_gaspi(RangeList *color
 					 , i1
 					 );
 #endif
-	      int inc_global = inc_send_counter_global(i1, sendcount_local[i1]);
-	      if (inc_global % cd->sendcount[k] == 0)
+	      int inc_global 
+		= inc_send_counter_global(i1
+					  , sendcount_local[i1]
+					  );
+	      if (inc_global 
+		  % cd->sendcount[k] == 0)
 		{
 #ifndef USE_PARALLEL_GATHER
 		  exchange_dbl_copy_in(cd
@@ -429,6 +488,13 @@ void initiate_thread_comm_gaspi(RangeList *color
 					   , buffer_id
 					   , i1
 					   );
+#ifdef USE_MPI_EARLY_WAIT
+		  if (my_add_and_fetch(&shared, 1) 
+		      % cd->ncommdomains == 0)
+		    {
+		      my_add_and_fetch(&(cd->comm_stage), 1);
+		    }
+#endif
 		}
 	    }
 	}
