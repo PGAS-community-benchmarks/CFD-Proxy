@@ -404,15 +404,36 @@ void exchange_dbl_mpipscw_async(comm_data *cd
   ASSERT((final == 0 || final == 1));
   int i;
 
-#if defined(USE_PSCW_EARLY_WAIT)
-#ifndef USE_MPI_MULTI_THREADED
-#error PSCW_EARLY_WAIT requires MPI_MULTI_THREADED
+#if defined(USE_MPI_IMMEDIATE_WAIT)
+#if !defined(USE_MPI_MULTI_THREADED)
+#error MPI_IMMEDIATE_WAIT requires MPI_MULTI_THREADED
 #endif 
-  if (this_is_the_first_thread())
-#else
-  if (this_is_the_last_thread())
+  if (this_is_the_first_thread()) 
+    {
+    /* unconditional waiting with recv first thread, 
+       requires MPI_MULTI_THREADED */ 
+
+#elif defined(USE_MPI_EARLY_WAIT)
+#if !defined(USE_MPI_MULTI_THREADED) && defined(USE_MPI_TEST)
+#error MPI_EARLY_WAIT with MPI_THREAD_SERIALIZED must not use USE_MPI_TEST
 #endif
-  {
+  if (this_is_the_first_thread()) 
+    {
+
+    /* wait for completed comm_stage before entering recv */ 
+    volatile int comm;
+    while ((comm = cd->comm_stage) == cd->send_stage)
+      {
+	_mm_pause();
+      }
+    /* sanity check */
+    ASSERT(comm == (cd->send_stage + 1));
+
+#else /* late wait */
+  if (this_is_the_last_thread())
+    {
+#endif
+
     mpidma_async_wait();
 
     for (i = 0; i < ncommdomains; ++i)
@@ -428,7 +449,7 @@ void exchange_dbl_mpipscw_async(comm_data *cd
 #endif
 
       }
-  }
+    }
 
 #ifdef USE_PARALLEL_SCATTER
   exchange_dbl_mpidma_scatter(cd, data, dim2);

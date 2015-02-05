@@ -82,8 +82,8 @@ void exchange_dbl_mpi_test(comm_data *cd)
   
   for (i = 0; i < ncommdomains; i++)
     {
-      volatile int send = cd->send_flag[i].global;
-      if (send > cd->send_stage)
+      volatile int send; 
+      if ((send = cd->send_flag[i].global) > cd->send_stage)
 	{
 	  MPI_Test(&(cd->req[ncommdomains + i])
 		   , &flag 
@@ -397,15 +397,35 @@ void exchange_dbl_mpi_async(comm_data *cd
   ASSERT(recvindex != NULL);
 
 
-#if defined(USE_MPI_ASYNC_EARLY_WAIT)
-#ifndef USE_MPI_MULTI_THREADED
-#error MPI_ASYNC_EARLY_WAIT requires MPI_MULTI_THREADED
+#if defined(USE_MPI_IMMEDIATE_WAIT)
+#if !defined(USE_MPI_MULTI_THREADED)
+#error MPI_IMMEDIATE_WAIT requires MPI_MULTI_THREADED
 #endif 
-  if (this_is_the_first_thread())
-#else
-  if (this_is_the_last_thread())
-#endif
+  if (this_is_the_first_thread()) 
     {
+    /* unconditional waiting with recv first thread, 
+       requires MPI_MULTI_THREADED */ 
+
+#elif defined(USE_MPI_EARLY_WAIT)
+#if !defined(USE_MPI_MULTI_THREADED) && defined(USE_MPI_TEST)
+#error MPI_EARLY_WAIT with MPI_THREAD_SERIALIZED must not use USE_MPI_TEST
+#endif
+  if (this_is_the_first_thread()) 
+    {
+
+    /* wait for completed comm_stage before entering recv */ 
+    volatile int comm;
+    while ((comm = cd->comm_stage) == cd->send_stage)
+      {
+	_mm_pause();
+      }
+    /* sanity check */
+    ASSERT(comm == (cd->send_stage + 1));
+
+#else /* late wait */
+  if (this_is_the_last_thread())
+    {
+#endif
 #if defined(USE_MPI_WAIT_ANY )
       for (i = 0; i < ncommdomains; ++i)
 	{
