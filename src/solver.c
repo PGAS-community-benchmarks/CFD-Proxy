@@ -233,8 +233,11 @@ void test_solver(comm_data *cd, solver_data *sd, int NTHREADS)
 #endif
 
 #ifdef DEBUG
-      printf(".");
-      fflush(stdout);
+      if (cd->iProc == 0)
+	{
+	  printf(".");
+	  fflush(stdout);
+	}
 #endif
 
     }

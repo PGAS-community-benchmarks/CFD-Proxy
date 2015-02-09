@@ -216,13 +216,11 @@ void initiate_thread_comm_mpi_pack(RangeList *color
 				       , i1
 				       );
 #endif
-#if defined(USE_MPI_EARLY_WAIT)
 		  if (my_add_and_fetch(&shared, 1) 
 		      % cd->ncommdomains == 0)
 		    {
-		      my_add_and_fetch(&(cd->comm_stage), 1);
+		      cd->comm_stage++;
 		    }
-#endif
 		}
 	    }
 	}
@@ -282,13 +280,11 @@ void initiate_thread_comm_mpi_send(RangeList *color
 					  , i1
 					  );
 		  }
-#ifdef USE_MPI_EARLY_WAIT
 		  if (my_add_and_fetch(&shared, 1) 
 		      % cd->ncommdomains == 0)
 		    {
-		      my_add_and_fetch(&(cd->comm_stage), 1);
+		      cd->comm_stage++;
 		    }
-#endif
 		}
 	    }
 	}
@@ -359,13 +355,11 @@ void initiate_thread_comm_mpi_fence(RangeList *color
 		    exchange_dbl_mpidma_write(cd, data, dim2, i1);
 
 		  }
-#ifdef USE_MPI_EARLY_WAIT
 		  if (my_add_and_fetch(&shared, 1) 
 		      % cd->ncommdomains == 0)
 		    {
-		      my_add_and_fetch(&(cd->comm_stage), 1);
+		      cd->comm_stage++;
 		    }
-#endif
 		}
 	    }
 	}
@@ -424,9 +418,7 @@ void initiate_thread_comm_mpi_pscw(RangeList *color
 			% cd->ncommdomains == 0)
 		        {
 			  mpidma_async_complete();
-#ifdef USE_MPI_EARLY_WAIT
-			  my_add_and_fetch(&(cd->comm_stage), 1);
-#endif
+			  cd->comm_stage++;
 		        }
 		    }
 		}
@@ -488,13 +480,11 @@ void initiate_thread_comm_gaspi(RangeList *color
 					   , buffer_id
 					   , i1
 					   );
-#ifdef USE_MPI_EARLY_WAIT
 		  if (my_add_and_fetch(&shared, 1) 
 		      % cd->ncommdomains == 0)
 		    {
-		      my_add_and_fetch(&(cd->comm_stage), 1);
+		      cd->comm_stage++;
 		    }
-#endif
 		}
 	    }
 	}
