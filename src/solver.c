@@ -155,8 +155,10 @@ void test_solver(comm_data *cd, solver_data *sd, int NTHREADS)
       MPI_Barrier(MPI_COMM_WORLD);
       time += now();
       median[5][k] = time;
+#endif
 
 
+#ifdef USE_MPI_1SIDED
       /* MPI put/fence bulk sync */
       time = -now();
       MPI_Barrier(MPI_COMM_WORLD);
@@ -232,6 +234,7 @@ void test_solver(comm_data *cd, solver_data *sd, int NTHREADS)
       median[9][k] = time;
 #endif
 
+
 #ifdef DEBUG
       if (cd->iProc == 0)
 	{
@@ -248,6 +251,9 @@ void test_solver(comm_data *cd, solver_data *sd, int NTHREADS)
       printf("\n*** COMPILE FLAGS\n");
 #ifdef USE_MPI_MULTI_THREADED
       printf(" -DUSE_MPI_MULTI_THREADED");
+#endif
+#ifdef USE_MPI_1_SIDED
+      printf(" -DUSE_MPI_1_SIDED");
 #endif
 #ifdef USE_MPI_WAIT_ANY
       printf(" -DUSE_MPI_WAIT_ANY");
@@ -298,10 +304,8 @@ void test_solver(comm_data *cd, solver_data *sd, int NTHREADS)
       printf("            exchange_dbl_mpi_bulk_sync: %10.6f\n",median[1][N_MEDIAN/2]);
       printf("           exchange_dbl_mpi_early_recv: %10.6f\n",median[2][N_MEDIAN/2]);
       printf("                exchange_dbl_mpi_async: %10.6f\n",median[3][N_MEDIAN/2]);
-#ifdef USE_GASPI
       printf("          exchange_dbl_gaspi_bulk_sync: %10.6f\n",median[4][N_MEDIAN/2]);
       printf("              exchange_dbl_gaspi_async: %10.6f\n",median[5][N_MEDIAN/2]);
-#endif
       printf("      exchange_dbl_mpi_fence_bulk_sync: %10.6f\n",median[6][N_MEDIAN/2]);
       printf("          exchange_dbl_mpi_fence_async: %10.6f\n",median[7][N_MEDIAN/2]);
       printf("       exchange_dbl_mpi_pscw_bulk_sync: %10.6f\n",median[8][N_MEDIAN/2]);

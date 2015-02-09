@@ -195,6 +195,10 @@ void initiate_thread_comm_mpi_pack(RangeList *color
 	     % sendcount_local[i1] == 0)
 	    {
 #ifdef USE_PARALLEL_GATHER
+	      /*
+	       * multithreaded gather, all threads
+	       * pack per commbuffer (i.e. per target rank)
+	       */
 	      exchange_dbl_copy_in_local(sbuf
 					 , data
 					 , dim2
@@ -209,6 +213,10 @@ void initiate_thread_comm_mpi_pack(RangeList *color
 		  % cd->sendcount[k] == 0)
 		{
 #ifndef USE_PARALLEL_GATHER
+		  /*
+		   * multithreaded pack, last thread
+		   * packs per commbuffer (i.e. per target rank)
+		   */
 		  exchange_dbl_copy_in(cd
 				       , sbuf
 				       , data
@@ -216,6 +224,11 @@ void initiate_thread_comm_mpi_pack(RangeList *color
 				       , i1
 				       );
 #endif
+		  /*
+		   * pack, no send, used in bulk_sync 
+		   * exchange in order to send pre-packed
+                   * comm buffer. 
+		   */
 		  if (my_add_and_fetch(&shared, 1) 
 		      % cd->ncommdomains == 0)
 		    {
@@ -249,6 +262,10 @@ void initiate_thread_comm_mpi_send(RangeList *color
 	     % sendcount_local[i1] == 0)
 	    {
 #ifdef USE_PARALLEL_GATHER
+	      /*
+	       * multithreaded gather, all threads
+	       * pack per commbuffer (i.e. per target rank)
+	       */
 	      exchange_dbl_copy_in_local(sbuf
 					 , data
 					 , dim2
@@ -263,6 +280,10 @@ void initiate_thread_comm_mpi_send(RangeList *color
 		  % cd->sendcount[k] == 0)
 		{
 #ifndef USE_PARALLEL_GATHER
+		  /*
+		   * multithreaded pack, last thread
+		   * packs per commbuffer (i.e. per target rank)
+		   */
 		  exchange_dbl_copy_in(cd
 				       , sbuf
 				       , data
@@ -280,6 +301,10 @@ void initiate_thread_comm_mpi_send(RangeList *color
 					  , i1
 					  );
 		  }
+		  /* 
+		   * increase comm_stage, flag last send 
+		   * required for MPI_EARLY_WAIT
+		   */
 		  if (my_add_and_fetch(&shared, 1) 
 		      % cd->ncommdomains == 0)
 		    {
@@ -289,6 +314,12 @@ void initiate_thread_comm_mpi_send(RangeList *color
 	    }
 	}
     }
+
+  /*
+   * try to achieve some progress, only useful
+   * with MPI_THREAD_SERIALIZED and late waiting. 
+   * Better: MPI_EARLY_WAIT -- achieve progress in waitany. 
+   */
 
 #if defined(USE_MPI_TEST)
 #if defined(USE_MPI_TEST_MASTER_ONLY)
@@ -328,6 +359,10 @@ void initiate_thread_comm_mpi_fence(RangeList *color
 	     % sendcount_local[i1] == 0)
 	    {
 #ifdef USE_PARALLEL_GATHER
+	      /*
+	       * multithreaded gather, all threads
+	       * pack per commbuffer (i.e. per target rank)
+	       */
 	      exchange_dbl_copy_in_local(sbuf
 					 , data
 					 , dim2
@@ -341,6 +376,10 @@ void initiate_thread_comm_mpi_fence(RangeList *color
 		  % cd->sendcount[k] == 0)
 		{
 #ifndef USE_PARALLEL_GATHER
+		  /*
+		   * multithreaded pack, last thread
+		   * packs per commbuffer (i.e. per target rank)
+		   */
 		  exchange_dbl_copy_in(cd
 				       , sbuf
 				       , data
@@ -355,6 +394,10 @@ void initiate_thread_comm_mpi_fence(RangeList *color
 		    exchange_dbl_mpidma_write(cd, data, dim2, i1);
 
 		  }
+		  /* 
+		   * increase comm_stage, flag last send 
+		   * required for MPI_EARLY_WAIT
+		   */
 		  if (my_add_and_fetch(&shared, 1) 
 		      % cd->ncommdomains == 0)
 		    {
@@ -389,6 +432,10 @@ void initiate_thread_comm_mpi_pscw(RangeList *color
 	     % sendcount_local[i1] == 0)
 	    {
 #ifdef USE_PARALLEL_GATHER
+	      /*
+	       * multithreaded gather, all threads
+	       * pack per commbuffer (i.e. per target rank)
+	       */
 	      exchange_dbl_copy_in_local(sbuf
 					 , data
 					 , dim2
@@ -402,6 +449,10 @@ void initiate_thread_comm_mpi_pscw(RangeList *color
 		  % cd->sendcount[k] == 0)
 		{
 #ifndef USE_PARALLEL_GATHER
+		  /*
+		   * multithreaded pack, last thread
+		   * packs per commbuffer (i.e. per target rank)
+		   */
 		  exchange_dbl_copy_in(cd
 				       , sbuf
 				       , data
@@ -418,6 +469,10 @@ void initiate_thread_comm_mpi_pscw(RangeList *color
 			% cd->ncommdomains == 0)
 		        {
 			  mpidma_async_complete();
+			  /* 
+			   * increase comm_stage, flag last send 
+			   * required for MPI_EARLY_WAIT
+			   */
 			  cd->comm_stage++;
 		        }
 		    }
@@ -453,6 +508,10 @@ void initiate_thread_comm_gaspi(RangeList *color
 	     % sendcount_local[i1] == 0)
 	    {
 #ifdef USE_PARALLEL_GATHER
+	      /*
+	       * multithreaded gather, all threads
+	       * pack per commbuffer (i.e. per target rank)
+	       */
 	      exchange_dbl_copy_in_local(sbuf
 					 , data
 					 , dim2
@@ -467,6 +526,10 @@ void initiate_thread_comm_gaspi(RangeList *color
 		  % cd->sendcount[k] == 0)
 		{
 #ifndef USE_PARALLEL_GATHER
+		  /*
+		   * multithreaded pack, last thread
+		   * packs per commbuffer (i.e. per target rank)
+		   */
 		  exchange_dbl_copy_in(cd
 				       , sbuf
 				       , data
@@ -480,6 +543,10 @@ void initiate_thread_comm_gaspi(RangeList *color
 					   , buffer_id
 					   , i1
 					   );
+		  /* 
+		   * increase comm_stage, flag last send 
+		   * required for MPI_EARLY_WAIT
+		   */
 		  if (my_add_and_fetch(&shared, 1) 
 		      % cd->ncommdomains == 0)
 		    {
