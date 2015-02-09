@@ -295,7 +295,7 @@ void initiate_thread_comm_mpi_send(RangeList *color
     }
 
 #if defined(USE_MPI_TEST)
-#if defined(USE_OMP_MASTER_FOR_MPI_TEST)
+#if defined(USE_MPI_TEST_MASTER_ONLY)
 #pragma omp master
 #endif
   {

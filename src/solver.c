@@ -261,8 +261,8 @@ void test_solver(comm_data *cd, solver_data *sd, int NTHREADS)
 #ifdef USE_MPI_TEST
       printf(" -DUSE_MPI_TEST");
 #endif
-#ifdef USE_OMP_MASTER_FOR_MPI_TEST
-      printf(" -DUSE_OMP_MASTER_FOR_MPI_TEST");
+#ifdef USE_MPI_TEST_MASTER_ONLY
+      printf(" -DUSE_MPI_TEST_MASTER_ONLY");
 #endif
 #ifdef USE_PACK_IN_BULK_SYNC
       printf(" -DUSE_PACK_IN_BULK_SYNC");
@@ -272,6 +272,9 @@ void test_solver(comm_data *cd, solver_data *sd, int NTHREADS)
 #endif
 #ifdef USE_PARALLEL_SCATTER
       printf(" -DUSE_PARALLEL_SCATTER");
+#endif
+#ifdef USE_GASPI
+      printf(" -DUSE_GASPI");
 #endif
 #ifdef USE_GASPI_TEST
       printf(" -DUSE_GASPI_TEST");
