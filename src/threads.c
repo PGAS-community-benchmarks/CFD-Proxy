@@ -175,6 +175,11 @@ int this_is_the_last_thread(void)
 }
 
 
+/*
+ * just pack, no send, used in bulk_sync 
+ * exchange in order to send pre-packed
+ * comm buffer. 
+ */
 void initiate_thread_comm_mpi_pack(RangeList *color
 				   , comm_data *cd
 				   , double *data
@@ -224,11 +229,6 @@ void initiate_thread_comm_mpi_pack(RangeList *color
 				       , i1
 				       );
 #endif
-		  /*
-		   * pack, no send, used in bulk_sync 
-		   * exchange in order to send pre-packed
-                   * comm buffer. 
-		   */
 		  if (my_add_and_fetch(&shared, 1) 
 		      % cd->ncommdomains == 0)
 		    {
