@@ -232,6 +232,10 @@ void initiate_thread_comm_mpi_pack(RangeList *color
 		  if (my_add_and_fetch(&shared, 1) 
 		      % cd->ncommdomains == 0)
 		    {
+		      /* 
+		       * increase comm_stage, 
+		       * (flag last pack) 
+		       */
 		      cd->comm_stage++;
 		    }
 		}

@@ -29,7 +29,7 @@
 #include "exchange_data_gaspi.h"
 #endif
 
-#define N_MEDIAN 25
+#define N_MEDIAN 10
 #define N_SOLVER 10
 
 void test_solver(comm_data *cd, solver_data *sd, int NTHREADS)
@@ -158,7 +158,7 @@ void test_solver(comm_data *cd, solver_data *sd, int NTHREADS)
 #endif
 
 
-#ifdef USE_MPI_1SIDED
+#ifdef USE_MPI_1_SIDED
       /* MPI put/fence bulk sync */
       time = -now();
       MPI_Barrier(MPI_COMM_WORLD);
