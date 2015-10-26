@@ -44,11 +44,10 @@ void init_halo_type(int *htype
 		    , solver_data *sd
 		    );
 
-void init_meta_data(int *pid
-		    , int NTHREADS
+void init_thread_id(int NTHREADS
+		    , int *pid
 		    , solver_data *sd
 		    );
-
 
 int get_ncolors_local(void);
 

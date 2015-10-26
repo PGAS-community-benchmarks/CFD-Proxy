@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
   read_solver_data(ncid, &sd);
 
   /* init solver */
-  const int NITER = 10;
+  const int NITER = 25;
   init_solver_data(&sd, NITER);
 
   /* read comm data */

@@ -62,27 +62,69 @@ static void private_compute_gradients_gg(RangeList *color, solver_data *sd)
 	}
     }
 
-  for(face = start; face < stop; face++)
+  if (ftype == 2)
     {
-      const int  p0    = fpoint[face][0];
-      const int  p1    = fpoint[face][1];
-      const double anx = fnormal[face][0];
-      const double any = fnormal[face][1];
-      const double anz = fnormal[face][2];
-
-      for(eq = 0; eq < NGRAD; eq++)
+      for(face = start; face < stop; face++)
 	{
-	  const double val = 0.5 * (var[p0][eq] + var[p1][eq]);
-	  const double vx = anx * val, vy = any * val, vz = anz * val;
-
-	  if (ftype == 2 || ftype == 3)
+	  const int  p0    = fpoint[face][0];
+	  const int  p1    = fpoint[face][1];
+	  const double anx = fnormal[face][0];
+	  const double any = fnormal[face][1];
+	  const double anz = fnormal[face][2];
+	  
+	  for(eq = 0; eq < NGRAD; eq++)
 	    {
+	      const double val = 0.5 * (var[p0][eq] + var[p1][eq]);
+	      const double vx = anx * val, vy = any * val, vz = anz * val;	      
+
 	      grad[p0][eq][0] += vx; 
 	      grad[p0][eq][1] += vy;
 	      grad[p0][eq][2] += vz;
 	    }
-	  if (ftype == 1 || ftype == 3)
+	}
+    }
+
+  if (ftype == 1)
+    {
+      for(face = start; face < stop; face++)
+	{
+	  const int  p0    = fpoint[face][0];
+	  const int  p1    = fpoint[face][1];
+	  const double anx = fnormal[face][0];
+	  const double any = fnormal[face][1];
+	  const double anz = fnormal[face][2];
+	  
+	  for(eq = 0; eq < NGRAD; eq++)
 	    {
+	      const double val = 0.5 * (var[p0][eq] + var[p1][eq]);
+	      const double vx = anx * val, vy = any * val, vz = anz * val;	      
+
+	      grad[p1][eq][0] -= vx;
+	      grad[p1][eq][1] -= vy;
+	      grad[p1][eq][2] -= vz; 
+	    }
+	}
+    }
+
+  if (ftype == 3)
+    {
+      for(face = start; face < stop; face++)
+	{
+	  const int  p0    = fpoint[face][0];
+	  const int  p1    = fpoint[face][1];
+	  const double anx = fnormal[face][0];
+	  const double any = fnormal[face][1];
+	  const double anz = fnormal[face][2];
+	  
+	  for(eq = 0; eq < NGRAD; eq++)
+	    {
+	      const double val = 0.5 * (var[p0][eq] + var[p1][eq]);
+	      const double vx = anx * val, vy = any * val, vz = anz * val;	      
+
+	      grad[p0][eq][0] += vx; 
+	      grad[p0][eq][1] += vy;
+	      grad[p0][eq][2] += vz;
+
 	      grad[p1][eq][0] -= vx;
 	      grad[p1][eq][1] -= vy;
 	      grad[p1][eq][2] -= vz; 

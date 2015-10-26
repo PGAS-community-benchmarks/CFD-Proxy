@@ -735,7 +735,7 @@ void init_threads(comm_data *cd
   init_comp_stage_global(NTHREADS);
 
   /* set thread id, color id */
-  init_meta_data(pid, NTHREADS, sd);
+  init_thread_id(NTHREADS, pid, sd);
 
   /* init halo type */
   init_halo_type(htype, cd, sd);
