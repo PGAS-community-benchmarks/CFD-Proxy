@@ -258,12 +258,6 @@ void init_communication(int argc, char *argv[], comm_data *cd)
 {
   ASSERT(cd != NULL);
 
-  /* threading model only */
-  if (cd->ndomains == 1)
-    {      
-      return;
-    }
-
   /* MPI init */
   int nProc, iProc;
 
@@ -285,7 +279,15 @@ void init_communication(int argc, char *argv[], comm_data *cd)
   fflush(stdout);
 #endif
 
+  init_communication_data(iProc, nProc, cd);
+
 #ifdef USE_GASPI
+  /* threading model only */
+  if (cd->ndomains == 1)
+    {      
+      return;
+    }
+
   /* GASPI init */
   gaspi_rank_t nProcGASPI, iProcGASPI;
   SUCCESS_OR_DIE(gaspi_proc_init(GASPI_BLOCK));
@@ -293,13 +295,14 @@ void init_communication(int argc, char *argv[], comm_data *cd)
   SUCCESS_OR_DIE(gaspi_proc_num(&nProcGASPI));
   ASSERT(iProcGASPI == iProc);
   ASSERT(nProcGASPI == nProc);
+
 #ifdef DEBUG
   printf("Hello from rank: %8d of numranks: %8d (GASPI)\n",iProcGASPI,nProcGASPI);
   fflush(stdout);
 #endif
 #endif
 
-  init_communication_data(iProc, nProc, cd);
+
 
 }
 

@@ -29,10 +29,10 @@ static void gather_sendcount(comm_data *cd
 {
   int i, j, i0;
 
-  int **idx = check_malloc(sd->nallpoints * sizeof(int*));
+  int **offset = check_malloc(sd->nallpoints * sizeof(int*));
   for(i = 0; i < sd->nallpoints; i++)
     {
-      idx[i] = NULL;
+      offset[i] = NULL;
     }
   /* gather sendindex data per pnt, per target */
   for(i = 0; i < cd->ncommdomains; i++)
@@ -44,24 +44,24 @@ static void gather_sendcount(comm_data *cd
 	  for(j = 0; j < count; j++)
 	    {
 	      int pnt = cd->sendindex[k][j];
-	      if (idx[pnt] == NULL)
+	      if (offset[pnt] == NULL)
 		{
-		  idx[pnt] = check_malloc(cd->ncommdomains * sizeof(int));
+		  offset[pnt] = check_malloc(cd->ncommdomains * sizeof(int));
 		  for(i0 = 0; i0 < cd->ncommdomains; i0++)   
 		    {
-		      idx[pnt][i0] = -1;
+		      offset[pnt][i0] = -1;
 		    }
  		}             
 	      // assert initial state per pnt, per target
-	      ASSERT(idx[pnt][i] == -1);
-	      idx[pnt][i] = j;
+	      ASSERT(offset[pnt][i] == -1);
+	      offset[pnt][i] = j;
 	    }
 	}
     }
 
   /* assemble partial sendcounts per color, per target */
 #pragma omp parallel default (none) shared(cd, sd\
-            , idx, stdout, stderr)
+            , offset, stdout, stderr)
     {
       RangeList *color;
       int  *nsendcount = check_malloc(cd->ncommdomains * sizeof(int));
@@ -81,11 +81,11 @@ static void gather_sendcount(comm_data *cd
 	  for(i1 = 0; i1 < nlast_points_of_color; i1++) 
 	    {
 	      int pnt = last_points_of_color[i1];
-	      if (idx[pnt] != NULL)
+	      if (offset[pnt] != NULL)
 		{
 		  for(i3 = 0; i3 < cd->ncommdomains; i3++)
 		    {
-		      int j1 = idx[pnt][i3];
+		      int j1 = offset[pnt][i3];
 		      if (j1 != -1) 
 			{
 			  nsendcount[i3]++;
@@ -125,9 +125,9 @@ static void gather_sendcount(comm_data *cd
                       for(i3 = 0; i3 < nlast_points_of_color; i3++) 
                         {
                           int pnt = last_points_of_color[i3];
-                          if (idx[pnt] != NULL)
+                          if (offset[pnt] != NULL)
                             {
-                              int j1 = idx[pnt][i1];
+                              int j1 = offset[pnt][i1];
                               if (j1 != -1) 
                                 {
                                   color->sendindex[i2][i4]  = pnt;
@@ -148,12 +148,12 @@ static void gather_sendcount(comm_data *cd
 
   for(i = 0; i < sd->nallpoints; i++)
     {
-      if (idx[i] != NULL)
+      if (offset[i] != NULL)
 	{
-	  check_free(idx[i]);
+	  check_free(offset[i]);
 	}
     }
-  check_free(idx);
+  check_free(offset);
 
 
   /* flag for testing color sendindex */
@@ -212,15 +212,15 @@ static void gather_recvcount(comm_data *cd
 {
   int i, j;
 
-  int *idx = check_malloc(sd->nallpoints * sizeof(int));
-  int *own  = check_malloc(sd->nallpoints * sizeof(int));
+  int *offset = check_malloc(sd->nallpoints * sizeof(int));
+  int *owner  = check_malloc(sd->nallpoints * sizeof(int));
   for(i = 0; i < sd->nallpoints; i++)
     {
-      idx[i] = -1;
-      own[i] = -1;
+      offset[i] = -1;
+      owner[i] = -1;
     }
 
-  /* gather recvindex data per pnt - similar to addpoint own */
+  /* gather recvindex data per pnt - similar to addpoint owner */
   for(i = 0; i < cd->ncommdomains; i++)
     {
       int k = cd->commpartner[i];
@@ -230,10 +230,10 @@ static void gather_recvcount(comm_data *cd
 	    {
 	      int pnt = cd->recvindex[k][j];
 	      ASSERT(pnt >= sd->nownpoints);
-	      ASSERT(idx[pnt] == -1);
-	      ASSERT(own[pnt] == -1);
-	      idx[pnt] = j;	      
-	      own[pnt] = i;
+	      ASSERT(offset[pnt] == -1);
+	      ASSERT(owner[pnt] == -1);
+	      offset[pnt] = j;	      
+	      owner[pnt] = i;
 	    }
 	}
     }
@@ -241,7 +241,7 @@ static void gather_recvcount(comm_data *cd
 
   /* assemble partial recvcounts per color, per target */
 #pragma omp parallel default (none) shared(cd, sd			\
-					   , idx, own, stdout, stderr)
+					   , offset, owner, stdout, stderr)
   {
     RangeList *color;
     int  *nrecvcount = check_malloc(cd->ncommdomains * sizeof(int));
@@ -263,9 +263,9 @@ static void gather_recvcount(comm_data *cd
 	    int pnt = all_points_of_color[i1];
 	    if (pnt >= cd->nownpoints)
 	      {
-		ASSERT(idx[pnt] != -1);
-		ASSERT(own[pnt] != -1);
-		i3 = own[pnt];
+		ASSERT(offset[pnt] != -1);
+		ASSERT(owner[pnt] != -1);
+		i3 = owner[pnt];
 		nrecvcount[i3]++;		  
 	      }
 	  }
@@ -303,9 +303,9 @@ static void gather_recvcount(comm_data *cd
 		      {
 			int pnt = all_points_of_color[i3];
 			if (pnt >= cd->nownpoints && 
-			    own[pnt] == i1)
+			    owner[pnt] == i1)
 			  {
-			    int j1 = idx[pnt];
+			    int j1 = offset[pnt];
 			    ASSERT(j1 != -1);
 			    color->recvindex[i2][i4]  = pnt;
 			    color->recvoffset[i2][i4] = j1;
@@ -322,8 +322,8 @@ static void gather_recvcount(comm_data *cd
     check_free(nrecvcount);
   }
 
-  check_free(idx);
-  check_free(own);
+  check_free(offset);
+  check_free(owner);
 
 
   /* flag for testing color recvindex */

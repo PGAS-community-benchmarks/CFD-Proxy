@@ -29,7 +29,7 @@
 #include "exchange_data_gaspi.h"
 #endif
 
-#define N_MEDIAN 10
+#define N_MEDIAN 25
 #define N_SOLVER 10
 
 void test_solver(comm_data *cd, solver_data *sd, int NTHREADS)
@@ -235,13 +235,11 @@ void test_solver(comm_data *cd, solver_data *sd, int NTHREADS)
 #endif
 
 
-#ifdef DEBUG
       if (cd->iProc == 0)
 	{
 	  printf(".");
 	  fflush(stdout);
 	}
-#endif
 
     }
 
@@ -299,6 +297,7 @@ void test_solver(comm_data *cd, solver_data *sd, int NTHREADS)
 	{ 
 	  sort_median(&median[k][0], &median[k][N_MEDIAN-1]);
 	}
+
       printf("\n*** TIMINGS\n");
       printf("                             comm_free: %10.6f\n",median[0][N_MEDIAN/2]);
       printf("            exchange_dbl_mpi_bulk_sync: %10.6f\n",median[1][N_MEDIAN/2]);

@@ -25,6 +25,7 @@
 #include "points_of_color.h"
 #include "threads.h"
 
+
 /* global stage counters for comp */
 static volatile counter_t *comp_stage_global = NULL; 
 
@@ -43,6 +44,13 @@ static int *ngb_threads_local;
 // threadprivate solver data
 static solver_data_local solver_local;
 #pragma omp threadprivate(solver_local)
+
+typedef struct
+{
+  int nelems;
+  int *list;
+  int *listidx;
+} ConnectInfo;
 
 
 solver_data_local* get_solver_local(void)
@@ -102,6 +110,8 @@ void init_rangelist(RangeList *fcolor)
 
 }
 
+
+
 void init_halo_type(int *htype
 		    , comm_data *cd
 		    , solver_data *sd
@@ -135,54 +145,153 @@ void init_halo_type(int *htype
 }
 
 
-void init_meta_data(int *pid
-		    , int NTHREADS
-		    , solver_data *sd
-		    )
-{ 
-  /* set thread range */
-  int min_size = sd->nallpoints/NTHREADS;
-  int i, j, k;
+#ifdef USE_CHACO_PARTITIONING
 
-  for(i = 0; i < sd->nallpoints; i++) 
+static int compute_chaco_graph(ConnectInfo *pnt2pnt, const int nfaces,
+			       const int nallpoints, int (*fpoint)[2])
+{
+  int i;
+
+  /*----------------------------------------------------------------------------
+  | Build up index list for the adjacency graph
+  ----------------------------------------------------------------------------*/
+  pnt2pnt->listidx = check_malloc((nallpoints + 1)*sizeof(int));
+  for(i = 0; i < nallpoints + 1; i++)
     {
-      pid[i] = -1;
+      pnt2pnt->listidx[i] = 0;
     }
 
-  int count = 0;
-  int ncolors = 0;
-  int rl_start = 0;
-  int rl_stop = 0;
-  for(k = 0; k < NTHREADS; k++)
+  for(i = 0; i < nfaces; i++)
     {
-      int npnt  = 0;
-      for(i = rl_start; i < sd->ncolors; i++)
-	{
-	  RangeList *color = &(sd->fcolor[i]); 
-	  npnt += color->nall_points_of_color;
-	  if (npnt >= min_size && k < NTHREADS-1)
-	    {
-	      break;
-	    }
-	}
-      rl_stop = MIN(i+1, sd->ncolors);      
+      const int p1 = fpoint[i][0];
+      const int p2 = fpoint[i][1];
 
-      /* all halo colors */
-      for(i = rl_start; i < rl_stop; i++)
-	{
-	  RangeList *color = &(sd->fcolor[i]); 
-	  int  *all_points_of_color = color->all_points_of_color;
-	  int  nall_points_of_color = color->nall_points_of_color;
-	  for(j = 0; j < nall_points_of_color; j++) 
-	    {
-	      int pnt = all_points_of_color[j];
-	      ASSERT(pid[pnt] == -1);
-	      pid[pnt] = k;
-	    }
-	  count += nall_points_of_color;
-	  ncolors++;
-	}
-      rl_start =  rl_stop;
+      if(p1 < nallpoints)
+        pnt2pnt->listidx[p1 + 1]++;
+
+      if(p2 < nallpoints)
+        pnt2pnt->listidx[p2 + 1]++;
+    }
+
+  /*----------------------------------------------------------------------------
+  | Sum up index vector
+  ----------------------------------------------------------------------------*/
+  for(i = 0; i < nallpoints; i++)
+    {
+      pnt2pnt->listidx[i + 1] += pnt2pnt->listidx[i];
+    }
+
+  /*----------------------------------------------------------------------------
+  | Build up the adjacency graph
+  ----------------------------------------------------------------------------*/
+  pnt2pnt->list = check_malloc((pnt2pnt->listidx[nallpoints])*sizeof(int));
+  for(i = 0; i < pnt2pnt->listidx[nallpoints]; i++)
+    {
+      pnt2pnt->list[i] = -1;
+    }
+
+  for(i = 0; i < nfaces; i++)
+    {
+      const int p1 = fpoint[i][0];
+      const int p2 = fpoint[i][1];
+      const int pos1 = pnt2pnt->listidx[p1];
+      const int pos2 = pnt2pnt->listidx[p2];
+
+      pnt2pnt->list[pos1] = p2 + 1;
+      pnt2pnt->listidx[p1]++;
+       
+      pnt2pnt->list[pos2] = p1 + 1;
+      pnt2pnt->listidx[p2]++;
+    }
+
+  for(i = nallpoints; i > 0; i--)
+    {
+      pnt2pnt->listidx[i] = pnt2pnt->listidx[i - 1];
+    }
+
+  pnt2pnt->listidx[0] = 0;  
+  pnt2pnt->nelems = nallpoints;
+
+  return nallpoints;
+
+}
+
+void init_thread_id(int NTHREADS
+                    , int *pid
+                    , solver_data *sd
+                    )
+{
+  int nall = sd->nallpoints;
+  int nfaces = sd->nfaces;
+  int (*fpoint)[2] = sd->fpoint;
+
+  int *pointweight = NULL;
+
+  short *part;
+  float eigent_tol = 0.001;
+  int mesh_dims[3] = { 0,0,0};
+  int arch   = 0;
+  int scheme = 0;
+  int coarse = 0;
+  int local  = 0;
+  int global = 0;
+  int ncube  = 0;
+  int i,j,l;
+
+  ConnectInfo pnt2pnt;
+  pnt2pnt.nelems = 0;
+  pnt2pnt.listidx = NULL;
+  pnt2pnt.list = NULL;
+
+  /* coarsen KL */
+  coarse=10;
+
+  /* bi-section etc. */
+  scheme=1;
+
+  /* hypercube, flat network .. */
+  arch=1;
+
+  /* KL global */
+  global=1;
+
+  /* KL local */
+  local=1;
+
+  compute_chaco_graph(&pnt2pnt, nfaces, nall, fpoint);
+
+  /* load (0,1,0) */
+  pointweight = (int *)check_malloc(nall * sizeof(int));
+  for(i = 0; i < nall; i++) 
+    {
+      pointweight[i] = 0;      
+    }
+  for(i = 0; i < nfaces; i++)
+    {
+      (pointweight[fpoint[i][0]])++;
+      (pointweight[fpoint[i][1]])++;
+    }
+
+  part = check_malloc(pnt2pnt.nelems * sizeof(short));
+  for(i = 0; i < pnt2pnt.nelems; i++) 
+    {
+      part[i] = -1;
+    }
+
+#define ELEMENTS_PER_CHUNK 32
+  int SZ = sd->nallpoints / ELEMENTS_PER_CHUNK;  
+  mesh_dims[0] = MIN(SZ, 65535);
+
+  interface(pnt2pnt.nelems, pnt2pnt.listidx, pnt2pnt.list, pointweight,
+            NULL, NULL, NULL, NULL, NULL, NULL,
+            part, arch, ncube, mesh_dims,
+            NULL, global, local, 0, coarse, scheme, eigent_tol, rand());
+
+  for(i = 0; i < nall; i++) 
+    {
+      ASSERT(part[i] != -1);
+      pid[i] = (int) (((double) part[i] * NTHREADS ) / (double) SZ);
+      ASSERT(pid[i] < NTHREADS);
     }
 
   /* re-assign cross edges ending in addpoints (outer halo) */
@@ -192,23 +301,101 @@ void init_meta_data(int *pid
       int p0 = sd->fpoint[face][0];
       int p1 = sd->fpoint[face][1];
       if (p1 >= sd->nownpoints && pid[p0] != pid[p1])
-	{
-	  pid[p1] = pid[p0];
-	}
+        {
+          pid[p1] = pid[p0];
+        }
       if (p0 >= sd->nownpoints && pid[p1] != pid[p0])
-	{
-	  pid[p0] = pid[p1];
-	}
+        {
+          pid[p0] = pid[p1];
+        }
     }
 
+}
+
+#else
+
+void init_thread_id(int NTHREADS
+                    , int *pid
+                    , solver_data *sd
+                    )
+{ 
+  /* set thread range */
+  int nfaces = sd->nfaces;
+  int nall = sd->nallpoints;
+  int (*fpoint)[2] = sd->fpoint;
+  int i, j, k;
+  int *pointweight = NULL;
+
+  for(i = 0; i < sd->nallpoints; i++) 
+    {
+      pid[i] = -1;
+    }
+
+  /* load (0,1,0) */
+  pointweight = (int *)check_malloc(nall * sizeof(int));
+  for(i = 0; i < nall; i++) 
+    {
+      pointweight[i] = 0;      
+    }
+  for(i = 0; i < nfaces; i++)
+    {
+      (pointweight[fpoint[i][0]])++;
+      (pointweight[fpoint[i][1]])++;
+    }
+
+  int count = 0;
+  int ncolors = 0;
+  int pnt_start = 0;
+  int pnt_stop = 0;
+
+  int min_size = 2*nfaces/NTHREADS;
+  for(k = 0; k < NTHREADS; k++)
+    {
+      int npnt  = 0;
+      for(i = pnt_start; i < sd->nallpoints; i++)
+        {
+          npnt += pointweight[i];
+          if (npnt >= min_size && k < NTHREADS-1)
+            {
+              break;
+            }
+        }
+      pnt_stop = MIN(i+1, sd->nallpoints);      
+      for(i = pnt_start; i < pnt_stop; i++)
+        {
+	  ASSERT(pid[i] == -1);
+	  pid[i] = k;
+	}
+      pnt_start =  pnt_stop;
+    }
+
+  check_free(pointweight);
+
+  /* re-assign cross edges ending in addpoints (outer halo) */
+  int face;
+  for (face = 0; face < sd->nfaces; face++)
+    {
+      int p0 = sd->fpoint[face][0];
+      int p1 = sd->fpoint[face][1];
+      if (p1 >= sd->nownpoints && pid[p0] != pid[p1])
+        {
+          pid[p1] = pid[p0];
+        }
+      if (p0 >= sd->nownpoints && pid[p1] != pid[p0])
+        {
+          pid[p0] = pid[p1];
+        }
+    }
+  
   /* sanity check */
-  ASSERT(count == sd->nallpoints);
-  ASSERT(ncolors == sd->ncolors);
   for(i = 0; i < sd->nallpoints; i++) 
     {
       ASSERT(pid[i] != -1);
     }
 }
+
+#endif
+
 
 void init_thread_neighbours(comm_data *cd
 			    , solver_data *sd
