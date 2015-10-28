@@ -158,7 +158,7 @@ For current results on a Fat Tree FDR/Ivy Bridge please have a look at the
 documentation. New, shiny and much better results for Xeon Phi have been  
 included in the wiki.
 
-https://github.com/PGAS-community-benchmarks/CFD-Proxy/wiki
+https://github.com/PGAS-community-benchmarks/CFD-Proxy/wiki#results
 
 ==============================================================================
 9. Community involvement
