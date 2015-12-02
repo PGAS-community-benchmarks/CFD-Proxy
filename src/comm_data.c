@@ -283,7 +283,7 @@ void init_communication(int argc, char *argv[], comm_data *cd)
 
 #ifdef USE_GASPI
   /* threading model only */
-  if (cd->ndomains == 1)
+  if (nProc == 1)
     {      
       return;
     }
