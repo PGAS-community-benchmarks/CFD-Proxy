@@ -64,7 +64,7 @@ in ./src directory.
    the only full implementation of GASPI) please see 
    https://github.com/cc-hpc-itwm/GPI-2
 
-5) For reading the netcfd dualgrid meshes you will need the netcfd library
+5) For reading the NetCDF dualgrid meshes you will need the NetCDF library
    http://www.unidata.ucar.edu/netcdf
 
 ==============================================================================
