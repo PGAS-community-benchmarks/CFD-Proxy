@@ -64,7 +64,7 @@ in ./src directory.
    the only full implementation of GASPI) please see 
    https://github.com/cc-hpc-itwm/GPI-2
 
-5) For reading the netcfd dualgrid meshes you will need the netcfd library
+5) For reading the NetCDF dualgrid meshes you will need the NetCDF library
    http://www.unidata.ucar.edu/netcdf
 
 ==============================================================================
@@ -76,7 +76,7 @@ in ./src directory.
    order to use the  MPI interoperabilty mode. 
    (./install.sh --with-mpi=/../../foo -p PREFIX)
 
-2) Adapt the Makefile in src. (NETCFD_DIR, MPI_DIR, GPI2_DIR, CFLAGS, 
+2) Adapt the Makefile in src. (NETCDF_DIR, MPI_DIR, GPI2_DIR, CFLAGS, 
    (USE_MPI_MULTI_THREADED, USE_GASPI, USE_NTHREADS)). The MPI lib will 
    require support for either MPI_THREAD_MULTIPLE or MPI_THREAD_SERIALIZED.
    There are quite a few possible combinations of the provided various 
