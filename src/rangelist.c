@@ -807,7 +807,7 @@ void wait_for_all_neighbours(void)
       if (i != tid)
         {
 	  volatile int global;
-	  while ((global = cget_stage_counter_global(i)) 
+	  while ((global = get_stage_counter_global(i)) 
 		 < comp_stage_global[tid].global)
             {
               _mm_pause();
