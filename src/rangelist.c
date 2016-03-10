@@ -65,11 +65,14 @@ int get_ncolors_local(void)
 
 void inc_stage_counter_global(int tid)
 {
+#pragma omp flush
   my_fetch_and_add(&comp_stage_global[tid].global,1);      
+#pragma omp flush
 }
 
 int get_stage_counter_global(int tid)
 {
+#pragma omp flush
   return comp_stage_global[tid].global;      
 }
 
@@ -783,7 +786,7 @@ void wait_for_local_neighbours(void)
     {
       volatile int global;
       int id = ngb_threads_local[i];
-      while ((global = comp_stage_global[id].global) 
+      while ((global = get_stage_counter_global(id)) 
 	     < comp_stage_global[tid].global)
         {
           _mm_pause();
@@ -804,7 +807,7 @@ void wait_for_all_neighbours(void)
       if (i != tid)
         {
 	  volatile int global;
-	  while ((global = comp_stage_global[i].global) 
+	  while ((global = cget_stage_counter_global(i)) 
 		 < comp_stage_global[tid].global)
             {
               _mm_pause();
