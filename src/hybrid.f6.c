@@ -40,11 +40,15 @@ int main(int argc, char *argv[])
 
 #ifndef USE_NTHREADS
 #warning USE_NTHREADS undefined
-  const int NTHREADS = omp_get_num_procs();
+  int NTHREADS;
+  char* OMP_NUM_THREADS = getenv("OMP_NUM_THREADS");
+  ASSERT(OMP_NUM_THREADS != NULL);
+  NTHREADS = atoi(OMP_NUM_THREADS);
 #else
   const int NTHREADS = USE_NTHREADS;
   omp_set_num_threads(NTHREADS);
 #endif
+
 
   /* init communication */
   init_communication(argc, argv, &cd);

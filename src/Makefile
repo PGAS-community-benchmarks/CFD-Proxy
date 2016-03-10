@@ -1,14 +1,14 @@
-GPI2_DIR = $(HOME)/mic/GPI2-1.3.0-master
-NETCDF_DIR = $(HOME)/mic/netcdf-4.2.1.1.mic
-MPI_DIR=/apps/all/impi/5.0.3.048-iccifort-2015.3.187/mic
-CC = $(MPI_DIR)/bin/mpiicc
+GPI2_DIR = /opt/GPI-2-1.3.0
+NETCDF_DIR = $(HOME)/intel64/netcdf-3.6.3
+MPI_DIR= /opt/intel/impi/5.1.2.150
+CC = $(MPI_DIR)/intel64/bin/mpiicc
 
 BIN += hybrid.f6.exe
 
 CFLAGS += -Wall
 CFLAGS += -Wextra
 CFLAGS += -Wshadow
-CFLAGS += -O3 -g -mmic
+CFLAGS += -O3 -g 
 CFLAGS += -std=c99
 CFLAGS += -openmp
 #CFLAGS += -DDEBUG 
@@ -27,7 +27,7 @@ CFLAGS += -DUSE_MPI_IMMEDIATE_WAIT
 CFLAGS += -DUSE_PACK_IN_BULK_SYNC
 CFLAGS += -DUSE_PARALLEL_GATHER
 CFLAGS += -DUSE_PARALLEL_SCATTER
-CFLAGS += -DUSE_NTHREADS=240
+CFLAGS += -DUSE_NTHREADS=48
 
 ###############################################################################
 
@@ -39,7 +39,7 @@ INCLUDE_DIR += ..
 
 LIBRARY_DIR += $(NETCDF_DIR)/lib
 LIBRARY_DIR += $(MPI_DIR)/lib
-LIBRARY_DIR += $(GPI2_DIR)/lib64/mic
+LIBRARY_DIR += $(GPI2_DIR)/lib64
 
 LDFLAGS += $(addprefix -L,$(LIBRARY_DIR))
 CFLAGS += $(addprefix -I,$(INCLUDE_DIR))
@@ -64,7 +64,7 @@ OBJ += queue
 OBJ += util
 
 LIB += GPI2
-LIB += ibverbs
+#LIB += ibverbs
 #LIB += mpich
 LIB += mpi_mt
 #LIB += mpi
