@@ -210,7 +210,7 @@ void exchange_dbl_mpifence_bulk_sync(comm_data *cd
 #ifndef USE_PARALLEL_SCATTER
 	/* copy the data from the recvbuffer into out data field */
         int k = commpartner[i];
-	double *rbuf = (double *) (rcvbuf + local_recv_offset[k]);
+	double *rbuf = (double *) ((char *) rcvbuf + local_recv_offset[k]);
 	exchange_dbl_copy_out(cd, rbuf, data, dim2, i);
 #endif
 
@@ -273,7 +273,7 @@ void exchange_dbl_mpifence_async(comm_data *cd
 #ifndef USE_PARALLEL_SCATTER
 	  /* copy the data from the recvbuffer into out data field */
 	  int k = commpartner[i];
-	  double *rbuf = (double *) (rcvbuf + local_recv_offset[k]);
+	  double *rbuf = (double *) ((char *) rcvbuf + local_recv_offset[k]);
 	  exchange_dbl_copy_out(cd, rbuf, data, dim2, i);
 #endif
 	}
@@ -352,7 +352,7 @@ void exchange_dbl_mpipscw_bulk_sync(comm_data *cd
 #ifndef USE_PARALLEL_SCATTER
 	  /* copy the data from the recvbuffer into out data field */
 	  int k = commpartner[i];
-	  double *rbuf = (double *) (rcvbuf + local_recv_offset[k]);
+	  double *rbuf = (double *) ((char *) rcvbuf + local_recv_offset[k]);
 	  exchange_dbl_copy_out(cd, rbuf, data, dim2, i);
 #endif
 	}
@@ -444,7 +444,7 @@ void exchange_dbl_mpipscw_async(comm_data *cd
 #ifndef USE_PARALLEL_SCATTER
 	/* copy the data from the recvbuf into out data field */
         int k = commpartner[i];
-	double *rbuf = (double *) (rcvbuf + local_recv_offset[k]);
+	double *rbuf = (double *) ((char *) rcvbuf + local_recv_offset[k]);
 	exchange_dbl_copy_out(cd, rbuf, data, dim2, i);
 #endif
 
