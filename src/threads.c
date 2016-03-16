@@ -358,7 +358,7 @@ void initiate_thread_comm_mpi_fence(RangeList *color
       int i1 = color->sendpartner[i];
       void *sndbuf = get_sndbuf();
       int k = cd->commpartner[i1];
-      double *const sbuf = (double *) (sndbuf + cd->local_send_offset[k]);
+      double *const sbuf = (double *) ((char *) sndbuf + cd->local_send_offset[k]);
       if (color->sendcount[i] > 0 
 	  && sendcount_local[i1] > 0)
 	{
@@ -431,7 +431,7 @@ void initiate_thread_comm_mpi_pscw(RangeList *color
       int i1 = color->sendpartner[i];
       void *sndbuf = get_sndbuf();
       int k = cd->commpartner[i1];
-      double *const sbuf = (double *) (sndbuf + cd->local_send_offset[k]);
+      double *const sbuf = (double *) ((char *) sndbuf + cd->local_send_offset[k]);
       if (color->sendcount[i] > 0 
 	  && sendcount_local[i1] > 0)
 	{
@@ -507,7 +507,7 @@ void initiate_thread_comm_gaspi(RangeList *color
       int buffer_id = cd->send_stage % 2;
       SUCCESS_OR_DIE(gaspi_segment_ptr(buffer_id, &ptr));
       int k = cd->commpartner[i1];
-      double *sbuf = (double *) (ptr + cd->local_send_offset[k]); 
+      double *sbuf = (double *) ((char *) ptr + cd->local_send_offset[k]); 
       if (color->sendcount[i] > 0 
 	  && sendcount_local[i1] > 0)
 	{

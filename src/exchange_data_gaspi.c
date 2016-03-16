@@ -181,7 +181,7 @@ static void exchange_dbl_gaspi_scatter(comm_data *cd
 	  int buffer_id = cd->recv_stage % 2;	  
 	  gaspi_pointer_t ptr;
 	  SUCCESS_OR_DIE(gaspi_segment_ptr(2+buffer_id, &ptr));		  
-	  double *rbuf = (double *) (ptr + local_recv_offset[k]);		  
+	  double *rbuf = (double *) ((char *) ptr + local_recv_offset[k]);		  
 	  exchange_dbl_copy_out_local(rbuf, data, dim2, i);	  
 	} 
     }
@@ -231,7 +231,7 @@ void exchange_dbl_gaspi_bulk_sync(comm_data *cd
 #if !defined(USE_PACK_IN_BULK_SYNC) && !defined(USE_PARALLEL_GATHER)
 	      gaspi_pointer_t ptr;
 	      SUCCESS_OR_DIE(gaspi_segment_ptr(buffer_id, &ptr));		  
-	      double *sbuf = (double *) (ptr + local_send_offset[k]);		  
+	      double *sbuf = (double *) ((char *) ptr + local_send_offset[k]);		  
 	      exchange_dbl_copy_in(cd
 				   , sbuf
 				   , data
@@ -271,7 +271,7 @@ void exchange_dbl_gaspi_bulk_sync(comm_data *cd
 	  /* copy the data from the recvbuffer into out data field */
 	  gaspi_pointer_t ptr;
 	  SUCCESS_OR_DIE(gaspi_segment_ptr(2+buffer_id, &ptr));		  
-	  double *rbuf = (double *) (ptr + local_recv_offset[k]);		  
+	  double *rbuf = (double *) ((char *) ptr + local_recv_offset[k]);		  
 	  exchange_dbl_copy_out(cd
 				, rbuf
 				, data
@@ -373,7 +373,7 @@ void exchange_dbl_gaspi_async(comm_data *cd
 		  /* copy the data from the recvbuffer into out data field */
 		  gaspi_pointer_t ptr;
 		  SUCCESS_OR_DIE(gaspi_segment_ptr(2+buffer_id, &ptr));		  
-		  double *rbuf = (double *) (ptr + local_recv_offset[k]);		  
+		  double *rbuf = (double *) ((char *) ptr + local_recv_offset[k]);		  
 		  exchange_dbl_copy_out_local(rbuf
 					      , data
 					      , dim2
@@ -406,7 +406,7 @@ void exchange_dbl_gaspi_async(comm_data *cd
 	  /* copy the data from the recvbuffer into out data field */
 	  gaspi_pointer_t ptr;
 	  SUCCESS_OR_DIE(gaspi_segment_ptr(2+buffer_id, &ptr));		  
-	  double *rbuf = (double *) (ptr + local_recv_offset[k]);		  
+	  double *rbuf = (double *) ((char *) ptr + local_recv_offset[k]);		  
 	  exchange_dbl_copy_out_local(rbuf
 				      , data
 				      , dim2
@@ -477,7 +477,7 @@ void exchange_dbl_gaspi_async(comm_data *cd
 	  /* copy the data from the recvbuffer into out data field */
 	  gaspi_pointer_t ptr;
 	  SUCCESS_OR_DIE(gaspi_segment_ptr(2+buffer_id, &ptr));		  
-	  double *rbuf = (double *) (ptr + local_recv_offset[k]);		  
+	  double *rbuf = (double *) ((char *) ptr + local_recv_offset[k]);		  
 	  exchange_dbl_copy_out(cd
 				, rbuf
 				, data
