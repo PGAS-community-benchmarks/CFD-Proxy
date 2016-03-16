@@ -64,19 +64,23 @@ static int **recvoffset_local = NULL;
 /* getter/setter functions for global/local counters */
 int get_send_counter_global(int i)
 {
+#pragma omp flush
   return send_counter_global[i].global;
 }
 int inc_send_counter_global(int i, int val)
 {
-  return my_add_and_fetch(&send_counter_global[i].global, val);
+#pragma omp flush
+  const int global = my_add_and_fetch(&send_counter_global[i].global, val);
+#pragma omp flush
+  return global;
 }
+
+/* getter/setter functions for thread local send/recv count */
 int inc_send_counter_local(int i, int val)
 {
   send_counter_local[i] += val;
   return send_counter_local[i];
 }
-
-/* getter/setter functions for thread local send/recv count */
 int get_nsendcount_local(void)
 {
   return nsendcount_local;
