@@ -27,7 +27,7 @@ CFLAGS += -DUSE_MPI_IMMEDIATE_WAIT
 CFLAGS += -DUSE_PACK_IN_BULK_SYNC
 CFLAGS += -DUSE_PARALLEL_GATHER
 CFLAGS += -DUSE_PARALLEL_SCATTER
-CFLAGS += -DUSE_NTHREADS=48
+CFLAGS += -DUSE_NTHREADS=2
 
 ###############################################################################
 
@@ -63,7 +63,7 @@ OBJ += waitsome
 OBJ += queue
 OBJ += util
 
-LIB += GPI2
+LIB += GPI2-dbg
 #LIB += ibverbs
 #LIB += mpich
 LIB += mpi_mt

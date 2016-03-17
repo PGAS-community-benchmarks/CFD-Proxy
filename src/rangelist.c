@@ -799,7 +799,7 @@ void wait_for_all_neighbours(void)
 {
   int i;
   int const tid = omp_get_thread_num();   
-  int const nthreads = omp_get_thread_num();
+  int const nthreads = omp_get_num_threads();
 
   /* test for neighbour thread stage */
   for (i = 0; i < nthreads; ++i)
